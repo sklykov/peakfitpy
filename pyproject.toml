@@ -1,0 +1,44 @@
+[project]
+name = "peakfitpy"
+dynamic = ["version"]  # Discovering of the version by the setuptools (see below: in the 'file' or 'attr')
+authors = [
+    {name = "Sergei Klykov"},
+    {email = "sergej.klykow@gmail.com"}
+]
+description = "Fitting of a curve on 2D data (y=f(x)) with a single peak for finding its properties"
+readme = "README.md"
+# license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convienient
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+	"scipy",
+]
+keywords = ["2D curve fitting", "single peak properties"]
+
+[project.urls]  # METADATA in wheel file will represent the data below by using pip show peakfitpy -v
+# But the the links themselves are mapped / parced by the PyPi website
+"Homepage" = ""
+"Repository" = ""
+"Bug Tracker" = ""
+"Documentation" = ""
+"Changelog" = ""
+
+[tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data
+where = ["src"]
+include = ["peakfitpy*"]
+exclude = ["tests"]
+
+[tool.setuptools.exclude-package-data]
+peakfitpy = ["*.png"]  # should exclude image files from distribution
+
+[tool.setuptools.dynamic]
+version = {attr = "peakfitpy.__version__"}  # Variable set in the __init__.py
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
