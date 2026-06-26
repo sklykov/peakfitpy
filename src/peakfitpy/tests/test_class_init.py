@@ -11,7 +11,6 @@ For running collected here tests, it's enough to run the command "pytest" from t
 """
 import numpy as np
 
-
 # Importing the written in the modules test functions for letting pytest library their automatic exploration
 if __name__ != "__main__":
     from ..peakfit_main import PeakFit2D

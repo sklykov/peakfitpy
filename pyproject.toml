@@ -7,8 +7,7 @@ authors = [
 ]
 description = "Fitting of a curve on 2D data (y=f(x)) with a single peak for finding its properties"
 readme = "README.md"
-# license = {file = "LICENSE"}  # includes the whole text in METADATA, maybe not so convienient
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -20,8 +19,7 @@ dependencies = [
 ]
 keywords = ["2D curve fitting", "single peak properties"]
 
-[project.urls]  # METADATA in wheel file will represent the data below by using pip show peakfitpy -v
-# But the the links themselves are mapped / parced by the PyPi website
+[project.urls]  # METADATA in a wheel file will represent the data below by using pip show peakfitpy -v
 "Homepage" = ""
 "Repository" = ""
 "Bug Tracker" = ""
@@ -42,3 +40,19 @@ version = {attr = "peakfitpy.__version__"}  # Variable set in the __init__.py
 [build-system]
 requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 145  # my own preference
+indent-width = 4
+target-version = "py311"
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "SIM"]
+ignore = ["E702", "E402", # used in the IDE
+    "SIM108", # many ternany operator replacements in a code
+    "SIM113", # potentially can break logic in a loop
+]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
