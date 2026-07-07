@@ -20,11 +20,11 @@ dependencies = [
 keywords = ["2D curve fitting", "single peak properties"]
 
 [project.urls]  # METADATA in a wheel file will represent the data below by using pip show peakfitpy -v
-"Homepage" = ""
-"Repository" = ""
-"Bug Tracker" = ""
-"Documentation" = ""
-"Changelog" = ""
+"Homepage" = "https://github.com/sklykov/peakfit"
+"Repository" = "https://github.com/sklykov/peakfit"
+"Bug Tracker" = "https://github.com/sklykov/peakfit/issues"
+"Documentation" = "https://github.com/sklykov/peakfit"
+"Changelog" = "https://github.com/sklykov/peakfit/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]  # Manifest.in file is only required for adding some package-data
 where = ["src"]
