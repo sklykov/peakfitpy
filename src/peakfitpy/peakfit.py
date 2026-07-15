@@ -32,9 +32,35 @@ nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 class PeakFit2D():
     """Base class for fitting a single peak on 2D data (function y = f(x))."""
 
-    x_vals : np.ndarray; y_vals : np.ndarray
+    x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; x_norm_m11 : np.ndarray; y_norm_01 : np.ndarray
+    x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
+        """
+        Accept X values that are: finite, Real unique numbers, and Y values that are: finite, Real numbers.
+        
+        X and Y values in the sense of Y = f(X) function.\n 
+        
+        Initialization logic automatically sort X values in ascending order along with corresponding Y values.\n
+        
+        For fitting, X and Y values normalized to the range [0.0, 1.0] and X values - additionally to the range [-1.0, 1.0].\n
+
+        Parameters
+        ----------
+        x : RealSeq | nparray
+            RealSeq = Sequence[Real] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
+        y : RealSeq | nparray
+            RealSeq = Sequence[Real] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If any of requirement on the input data not met.
+        """
         # Convert common sequence types to numpy arrays
         x = np.asarray(x) if isinstance(x, Sequence) else x  # Note: Runtime check cannot be done on Generic type (Sequence[Real])
         y = np.asarray(y) if isinstance(y, Sequence) else y
@@ -52,9 +78,12 @@ class PeakFit2D():
             self.y_vals = y.ravel().copy(); y_data_parced = True
         elif y.ndim == 1:
             self.y_vals = y.copy(); y_data_parced = True
-        # All input data checks are failed
+        # All input data possible tranforms are failed, check resolves to false
         if not x_data_parced or not y_data_parced:
-            raise ValueError("\nProvided X and/or Y data isn't 1D array (vector) or 2D convertable array (with a single column)")
+            raise ValueError("\nX and/or Y data isn't 1D array (vector) or 2D convertable array (with a single column)")
+        # Check that data contains only finite (no infinity and no NaNs) values
+        if not np.isfinite(self.x_vals).all() or not np.isfinite(self.y_vals).all():
+            raise ValueError("\nX and/or Y data contains infinite or NaN values")
         # Check data consistency - x input data ascending
         if not np.all(self.x_vals[1:] > self.x_vals[:-1]):  # check elements sequentially shifted by 1 on both ends
             if np.unique(self.x_vals).size == self.x_vals.size:
@@ -67,7 +96,33 @@ class PeakFit2D():
                     self.x_vals = self.x_vals[ids]; self.y_vals = self.y_vals[ids]  # use sorted X indices for sorting both
             else:
                 raise ValueError("\nProvided X data doesn't contain all unique values")
-        # Normalize data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
+        # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
+        self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
+        if self.x_range != 0.0:
+            self.x_norm_01 = (self.x_vals.copy() - self.x_min) / self.x_range # normalization to the [0.0, 1.0] range
+            self.x_norm_m11 = (self.x_norm_01.copy() - 0.5)*2.0  # recalculation for a symmetric range [-1.0, 1.0]
+        else:
+            raise ValueError("\nDifference of max and min values of X data results to a zero range")
+        self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
+        if self.y_range != 0.0:
+            self.y_norm_01 = (self.y_vals.copy() - self.y_min) / self.y_range
+        else:
+            self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
+    
+    # %% Fitting
+    
+    # %% Data transformers
+    def normalize_x(self, x: Real | nparray) -> Real | nparray:
+        return (x - self.x_min) / self.x_range
+    
+    def normalize_y(self, y: Real | nparray) -> Real | nparray:
+        if self.y_range != 0.0:
+            return (y - self.y_min) / self.y_range
+        else:
+            if isinstance(y, Real):
+                return type(y)(0)  # like explicitly int(0) or float(0)
+            else:
+                return np.zeros_like(y)
     
     # %% Static useful methods
     @staticmethod
