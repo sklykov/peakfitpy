@@ -103,6 +103,7 @@ class PeakFit2D():
             self.x_norm_m11 = (self.x_norm_01.copy() - 0.5)*2.0  # recalculation for a symmetric range [-1.0, 1.0]
         else:
             raise ValueError("\nDifference of max and min values of X data results to a zero range")
+        # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
             self.y_norm_01 = (self.y_vals.copy() - self.y_min) / self.y_range

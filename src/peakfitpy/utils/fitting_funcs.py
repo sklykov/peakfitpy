@@ -128,7 +128,121 @@ def line_f(X: np.ndarray, k: float, b: float)-> np.ndarray:
     Returns
     -------
     np.ndarray
-        Y = a/(a^2 + (X-b)^2).
+        Y =  k*X + b.
 
     """
     return k*X + b
+
+
+def sech_f(X: np.ndarray, m: float) -> np.ndarray:
+    """
+    Parametric hyperbolic secant.
+    
+    Equation: Y = m / (exp(X) + exp(-X)).
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    m : float
+        Max value (scaling), for normalized values default value = 2.0 (max at X = 0.0).
+
+    Returns
+    -------
+    np.ndarray
+        Y = m / (exp(X) + exp(-X)).
+    """
+    return m / (np.exp(X) + np.exp(-X))
+
+
+def bump_f(X: np.ndarray, b: float, k: float) -> np.ndarray:
+    """
+    Parametric bump function.
+    
+    Equation: Y = k*exp(b^2 / (X^2 - b^2)) where abs(X) < b else 0.0.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    b : float
+        Parameter inside an equation.
+    k : float
+        Scaling coefficient.
+
+    Returns
+    -------
+    np.ndarray
+        Y = k*exp(b^2 / (X^2 - b^2)) where abs(X) < b else 0.0.
+    """
+    return np.where(np.abs(X) < b, k*np.exp(b**2 / (X**2 - b**2)), 0.0)
+
+
+def witch_agnesi_f(X: np.ndarray, a: float) -> np.ndarray:
+    """
+    Witch Of Agnesi function.
+    
+    Equation: Y = 8.0*a^3 / (X^2 + 2.0*a^2).
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    a : float
+        Equation parameter, for normalized values default is a = 1/2.
+
+    Returns
+    -------
+    np.ndarray
+        Y = 8.0*a^3 / (X^2 + 2.0*a^2).
+    """
+    return (8.0*a**3)/(X**2 + 2.0*a**2)
+
+
+def logistic_derivative_f(X: np.ndarray, k: float) -> np.ndarray:
+    """
+    Parametric derivative of logistic function.
+    
+    Equation: Y = k*exp(X) / (1.0 + exp(X))^2.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    k : float
+        Scaling coefficient, for normalized values default is k = 1/2.
+
+    Returns
+    -------
+    np.ndarray
+        Y = k*exp(X) / (1.0 + exp(X))^2.
+    """
+    expX = np.exp(X)
+    return k*(expX / np.power((1.0 + expX), 2))
+
+
+def cosine_f(X: np.ndarray, k: float, a:float) -> np.ndarray:
+    """
+    Parametric cosine function.
+    
+    Equation: Y = k*cos(X). Better to use for fitting on [-1.0, 1.0] interval.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    k : float
+        DESCRIPTION.
+    a : float
+        DESCRIPTION.
+
+    Returns
+    -------
+    np.ndarray
+        DESCRIPTION.
+    """
+    return k*np.cos(a*X)
+
+
+def rayleigh_pdf_f(X: np.ndarray, sigma: float) -> np.ndarray:
+    pass
