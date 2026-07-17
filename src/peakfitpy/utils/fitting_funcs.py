@@ -36,7 +36,8 @@ def gaussian_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
     """
     Parametric Gaussian function for fitting with zero asymptotic minimal Y value.
 
-    Equation: a*exp(-(X-b)^2/2*c^2).
+    Equation: a*exp(-(X-b)^2/2*c^2) \n
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -90,7 +91,8 @@ def lorentzian_f(X: np.ndarray, a: float, b: float) -> np.ndarray:
     """
     Parametric Lorentzian (Cauchy PDF) function for fitting.
 
-    Equation: a/(a^2 + (X-b)^2).
+    Equation: a/(a^2 + (X-b)^2) \n 
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -138,7 +140,8 @@ def sech_f(X: np.ndarray, m: float) -> np.ndarray:
     """
     Parametric hyperbolic secant.
     
-    Equation: Y = m / (exp(X) + exp(-X)).
+    Equation: Y = m / (exp(X) + exp(-X)) \n
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -159,7 +162,8 @@ def bump_f(X: np.ndarray, b: float, k: float) -> np.ndarray:
     """
     Parametric bump function.
     
-    Equation: Y = k*exp(b^2 / (X^2 - b^2)) where abs(X) < b else 0.0.
+    Equation: Y = k*exp(b^2 / (X^2 - b^2)) where abs(X) < b else 0.0 \n
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -182,7 +186,8 @@ def witch_agnesi_f(X: np.ndarray, a: float) -> np.ndarray:
     """
     Witch Of Agnesi function.
     
-    Equation: Y = 8.0*a^3 / (X^2 + 2.0*a^2).
+    Equation: Y = 8.0*a^3 / (X^2 + 2.0*a^2) \n
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -203,7 +208,8 @@ def logistic_derivative_f(X: np.ndarray, k: float) -> np.ndarray:
     """
     Parametric derivative of logistic function.
     
-    Equation: Y = k*exp(X) / (1.0 + exp(X))^2.
+    Equation: Y = k*exp(X) / (1.0 + exp(X))^2 \n
+    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
@@ -225,24 +231,71 @@ def cosine_f(X: np.ndarray, k: float, a:float) -> np.ndarray:
     """
     Parametric cosine function.
     
-    Equation: Y = k*cos(X). Better to use for fitting on [-1.0, 1.0] interval.
+    Equation: Y = k*cos(a*X). Better to use for fitting on [-1.0, 1.0] interval.
 
     Parameters
     ----------
     X : np.ndarray
         Function values.
     k : float
-        DESCRIPTION.
+        Scaling (amplitude) coefficient.
     a : float
-        DESCRIPTION.
+        Phase scaling coefficient.
 
     Returns
     -------
     np.ndarray
-        DESCRIPTION.
+        Y = k*cos(a*X).
     """
     return k*np.cos(a*X)
 
 
-def rayleigh_pdf_f(X: np.ndarray, sigma: float) -> np.ndarray:
-    pass
+def rayleigh_pdf_f(X: np.ndarray, sigma: float, k: float) -> np.ndarray:
+    """
+    Parametric Rayleigh distribution PDF function.
+    
+    Equation: Y = (k*X / sigma^2)*exp(-X^2/2*sigma^2) \n
+    Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    sigma : float
+        Scaling parameter.
+    k : float
+        Amplitude parameter.
+
+    Returns
+    -------
+    np.ndarray
+        Y = (k*X / sigma^2)*exp(-X^2/2*sigma^2).
+    """
+    sigma2 = sigma**2
+    return ((k*X)/sigma2)*np.exp(-(X**2)/(2.0*sigma2))
+
+
+def laplace_pdf_f(X: np.ndarray, m: float, b: float, k: float) -> np.ndarray:
+    """
+    Parametric Laplace distribution PDF function.
+    
+    Equation: Y = k*exp(-|X-m|/b) \n
+    Source: https://en.wikipedia.org/wiki/Laplace_distribution
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    m : float
+        Mean value.
+    b : float
+        Scaling parameter.
+    k : float
+        Amplitude parameter.
+
+    Returns
+    -------
+    np.ndarray
+        Y = k*exp(-|X-m|/b).
+    """
+    return k*np.exp(-np.abs(X - m)/b)
