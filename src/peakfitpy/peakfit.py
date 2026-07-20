@@ -22,7 +22,8 @@ with suppress(ImportError):
 
 import matplotlib.pyplot as plt
 
-from .utils.fitting_funcs import default_f_params, full_f_names, gaussian_f, gaussian_leveled_f, line_f, lorentzian_f, parabola_f, sech_f
+from .utils.fitting_funcs import (default_f_params, full_f_names, gaussian_f, gaussian_leveled_f, line_f, lorentzian_f, parabola_f, sech_f,
+                                  bump_f, witch_agnesi_f)
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -112,7 +113,7 @@ class PeakFit2D():
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
-        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f]
+        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
     
@@ -136,7 +137,7 @@ class PeakFit2D():
         -------
         None
         """
-        if f_name in self.function_names and x_range in self.function_ranges:
+        if f_name in self.function_names and x_range in self.function_ranges and x_range in self.function_params[f_name]:
             i = self.function_names.index(f_name)
             if x_range == self.function_ranges[0]:
                 x_norm = np.linspace(start=0.0, stop=1.0, num=251)
@@ -155,10 +156,60 @@ class PeakFit2D():
     
     # %% Data transformers
     def normalize_x(self, x: Real | nparray) -> Real | nparray:
+        """
+        Normalize new x values using the provided on the initialization data.
+
+        Parameters
+        ----------
+        x : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Normalized data.
+        
+        Raises
+        ------
+        ValueError
+            If provided values lay out of range of the initially used array.
+        """
+        x = np.asarray(x) if isinstance(x, Sequence) else x
+        if isinstance(x, np.ndarray):
+            if x.min() < self.x_min or x.max() > self.x_max:
+                raise ValueError("\nMin or Max element from provided x array lays out of range of initially used x array")
+        else:
+            if x < self.x_min or x > self.x_max:
+                raise ValueError("\nProvided element lays out of range of the initially used x array")
         return (x - self.x_min) / self.x_range
     
     def normalize_y(self, y: Real | nparray) -> Real | nparray:
+        """
+        Normalize new y values using the provided on the initialization data.
+
+        Parameters
+        ----------
+        y : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Normalized data.
+
+        Raises
+        ------
+        ValueError
+            If provided values lay out of range of the initially used array.
+        """
+        y = np.asarray(y) if isinstance(y, Sequence) else y
         if self.y_range != 0.0:
+            if isinstance(y, np.ndarray):
+                if y.min() < self.y_min or y.max() > self.y_max:
+                    raise ValueError("\nMin or Max element from provided y array lays out of range of initially used y array")
+            else:
+                if y < self.y_min or y > self.y_max:
+                    raise ValueError("\nProvided element lays out of range of the initially used y array")
             return (y - self.y_min) / self.y_range
         else:
             if isinstance(y, Real):

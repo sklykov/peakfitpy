@@ -14,10 +14,14 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "gaussian_leveled_f": {"0,1": [1.0, 0.5, 0.15, 0.0], "-1,1": [1.0, 0.0, 0.3, 0.0]},
                     "lorentzian_f": {"0,1": [0.1, 0.5, pi*0.1], "-1,1": [0.25, 0.0, pi*0.25]}, 
                     "line_f": {"0,1": [0.0, 0.5], "-1,1": [0.0, 0.5]}, 
-                    "sech_f": {"0,1": [2.0, 8.0, 0.5], "-1,1": [2.0, 4.0, 0.0]}}
+                    "sech_f": {"0,1": [2.0, 8.0, 0.5], "-1,1": [2.0, 4.0, 0.0]}, 
+                    "bump_f": {"-1,1": [1.001, 2.0]}, 
+                    "witch_agnesi_f": {"0,1": [0.25, 0.5], "-1,1": [0.25, 0.0]}, 
+                    }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
-                "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant"}
+                "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function", 
+                "witch_agnesi_f": "Witch of Agnesi Function"}
 
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -200,7 +204,7 @@ def bump_f(X: np.ndarray, b: float, k: float) -> np.ndarray:
     return np.where(np.abs(X) < b, k*np.exp(b**2 / (X**2 - b**2)), 0.0)
 
 
-def witch_agnesi_f(X: np.ndarray, a: float) -> np.ndarray:
+def witch_agnesi_f(X: np.ndarray, a: float, m: float) -> np.ndarray:
     """
     Witch Of Agnesi function.
     
@@ -212,14 +216,16 @@ def witch_agnesi_f(X: np.ndarray, a: float) -> np.ndarray:
     X : np.ndarray
         Function values.
     a : float
-        Equation parameter, for normalized values default is a = 1/2.
+        Equation parameter, for normalized values default is a = 1/4.
+    m : float
+        Central shift from 0.0 of peak value in X.
 
     Returns
     -------
     np.ndarray
         Y = 8.0*a^3 / (X^2 + 2.0*a^2).
     """
-    return (8.0*a**3)/(X**2 + 2.0*a**2)
+    return (8.0*a**3)/((X-m)**2 + 2.0*a**2)
 
 
 def logistic_derivative_f(X: np.ndarray, k: float) -> np.ndarray:
