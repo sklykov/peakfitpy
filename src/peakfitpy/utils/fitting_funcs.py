@@ -7,6 +7,9 @@ Symbolic definitions of functions for fitting.
 """
 import numpy as np
 
+default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.4]}, 
+                    "parabola_f": {"0,1": [-4.0, 4.0, 0.0], "-1,1": [-1.0, 0.0, 1.0]}}
+
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
     """

@@ -6,21 +6,27 @@ Main script with the class definition for peak fitting and retrieving properties
 
 """
 # %% Global imports
+import warnings
 from collections.abc import Sequence
 from contextlib import suppress
 from numbers import Real
 from typing import Any
 
-# For compatibility between running configurations in Spyder and PyCharm IDEs
 import matplotlib
 import numpy as np
 from numpy.typing import NDArray
 
+# For compatibility between running configurations in Spyder and PyCharm IDEs
 with suppress(ImportError):
     matplotlib.use('Qt5Agg')
 
+import matplotlib.pyplot as plt
 
-# %% Local (package-scoped) imports
+# %% Local (package-scoped) imports - used for tests inside a module
+if __name__ == "__main__":
+    from utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
+else:
+    from .utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -109,8 +115,46 @@ class PeakFit2D():
             self.y_norm_01 = (self.y_vals.copy() - self.y_min) / self.y_range
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
+        # Available functions report
+        self.functions = [gaussian_f, parabola_f]
+        self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
+        self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
     
     # %% Fitting
+    
+    # %% Plotting
+    def plot_norm(self, f_name: str='gaussian_f', x_range: str="0,1"):
+        """
+        Plot interactively provided function for X values in the range [0.0, 1.0] (x_range="0,1") or [-1.0, 1.0] (x_range="-1,1").
+        
+        List of available imported functions is available as the class attribute 'function_names'.
+
+        Parameters
+        ----------
+        f_name : str, optional
+            Function name. The default is 'gaussian_f'.
+        x_range : str, optional
+            Range for X values for plotting and selection of default parameters for a function. The default is "0,1".
+
+        Returns
+        -------
+        None
+        """
+        if f_name in self.function_names and x_range in self.function_ranges:
+            i = self.function_names.index(f_name)
+            if x_range == self.function_ranges[0]:
+                x_norm = np.linspace(start=0.0, stop=1.0, num=100)
+            else:
+                x_norm = np.linspace(start=-1.0, stop=1.0, num=200)
+            y_norm = self.functions[i](x_norm, *self.function_params[f_name][x_range])
+            if not plt.isinteractive():
+                plt.ion()
+            plt.figure(f"{f_name} X=[0.0, 1.0], {x_range} params"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
+        else:
+            if f_name not in self.function_names:
+                warnings.warn(f"\nFunction '{f_name}' not found in the list of supported functions: {self.functions}", stacklevel=2)
+            if x_range not in self.function_ranges:
+                warnings.warn(f"\n X_range '{x_range}' not recognized (supported: {self.function_ranges})", stacklevel=2)
     
     # %% Data transformers
     def normalize_x(self, x: Real | nparray) -> Real | nparray:
@@ -160,4 +204,6 @@ __all__ = ['PeakFit2D']
 
 # %% Only for development purposes, transfer it to test script
 if __name__ == "__main__":
-    pass
+    pf = PeakFit2D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
+    # pf.plot_norm(); pf.plot_norm(x_range="-1,1")  # Gaussian function check
+    pf.plot_norm(f_name=pf.function_names[1]); pf.plot_norm(f_name=pf.function_names[1], x_range="-1,1")
