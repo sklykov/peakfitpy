@@ -12,7 +12,12 @@ import numpy as np
 default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.4]}, 
                     "parabola_f": {"0,1": [-4.0, 4.0, 0.0], "-1,1": [-1.0, 0.0, 1.0]},
                     "gaussian_leveled_f": {"0,1": [1.0, 0.5, 0.15, 0.0], "-1,1": [1.0, 0.0, 0.3, 0.0]},
-                    "lorentzian_f": {"0,1": [0.1, 0.5, pi*0.1], "-1,1": [0.25, 0.0, pi*0.25]}}
+                    "lorentzian_f": {"0,1": [0.1, 0.5, pi*0.1], "-1,1": [0.25, 0.0, pi*0.25]}, 
+                    "line_f": {"0,1": [0.0, 0.5], "-1,1": [0.0, 0.5]}, 
+                    "sech_f": {"0,1": [2.0, 8.0, 0.5], "-1,1": [2.0, 4.0, 0.0]}}
+
+full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
+                "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant"}
 
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -98,7 +103,7 @@ def lorentzian_f(X: np.ndarray, a: float, b: float, k: float) -> np.ndarray:
     """
     Parametric Lorentzian (Cauchy PDF) function for fitting.
 
-    Equation: a/(a^2 + (X-b)^2) \n 
+    Equation: (a*k) / pi*(a^2 + (X-b)^2) \n 
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -115,7 +120,7 @@ def lorentzian_f(X: np.ndarray, a: float, b: float, k: float) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Y = k/(a^2 + (X-b)^2).
+        Y = (a*k) / pi*(a^2 + (X-b)^2).
 
     """
     return (a*k)/(pi*(a**2 + np.power(X-b, 2)))
@@ -145,26 +150,30 @@ def line_f(X: np.ndarray, k: float, b: float)-> np.ndarray:
     return k*X + b
 
 
-def sech_f(X: np.ndarray, m: float) -> np.ndarray:
+def sech_f(X: np.ndarray, k: float, a: float, b: float) -> np.ndarray:
     """
     Parametric hyperbolic secant.
     
-    Equation: Y = m / (exp(X) + exp(-X)) \n
+    Equation: Y = k / (exp(a*(X-b)) + exp(a*(-X+b))) \n
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
     X : np.ndarray
         Function values.
-    m : float
+    k : float
         Max value (scaling), for normalized values default value = 2.0 (max at X = 0.0).
+    a : float
+        Scaling parameter for decay (FWHM).
+    b : float
+        Offset on X from 0.0 of the peak value.
 
     Returns
     -------
     np.ndarray
-        Y = m / (exp(X) + exp(-X)).
+        Y = k / (exp(a*(X-b)) + exp(a*(-X+b))).
     """
-    return m / (np.exp(X) + np.exp(-X))
+    return k / (np.exp(a*(X-b)) + np.exp(a*(-X+b)))
 
 
 def bump_f(X: np.ndarray, b: float, k: float) -> np.ndarray:
