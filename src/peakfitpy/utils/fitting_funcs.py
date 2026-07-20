@@ -5,10 +5,14 @@ Symbolic definitions of functions for fitting.
 @author: Sergei Klykov, @year: 2026, @licence: MIT \n
 
 """
+from math import pi
+
 import numpy as np
 
 default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.4]}, 
-                    "parabola_f": {"0,1": [-4.0, 4.0, 0.0], "-1,1": [-1.0, 0.0, 1.0]}}
+                    "parabola_f": {"0,1": [-4.0, 4.0, 0.0], "-1,1": [-1.0, 0.0, 1.0]},
+                    "gaussian_leveled_f": {"0,1": [1.0, 0.5, 0.15, 0.0], "-1,1": [1.0, 0.0, 0.3, 0.0]},
+                    "lorentzian_f": {"0,1": [0.1, 0.5, pi*0.1], "-1,1": [0.25, 0.0, pi*0.25]}}
 
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -90,7 +94,7 @@ def gaussian_leveled_f(X: np.ndarray, a: float, b: float, c: float, d: float) ->
     return a*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
 
 
-def lorentzian_f(X: np.ndarray, a: float, b: float) -> np.ndarray:
+def lorentzian_f(X: np.ndarray, a: float, b: float, k: float) -> np.ndarray:
     """
     Parametric Lorentzian (Cauchy PDF) function for fitting.
 
@@ -105,14 +109,16 @@ def lorentzian_f(X: np.ndarray, a: float, b: float) -> np.ndarray:
         See equation (gamma value).
     b : float
         See equation. Mean value (x0).
+    k : float
+        Scaling coefficient (detached from 'a' or gamma value).
 
     Returns
     -------
     np.ndarray
-        Y = a/(a^2 + (X-b)^2).
+        Y = k/(a^2 + (X-b)^2).
 
     """
-    return a/(a**2 + np.power(X-b, 2))
+    return (a*k)/(pi*(a**2 + np.power(X-b, 2)))
 
 
 def line_f(X: np.ndarray, k: float, b: float)-> np.ndarray:

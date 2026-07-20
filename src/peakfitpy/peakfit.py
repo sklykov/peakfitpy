@@ -22,11 +22,7 @@ with suppress(ImportError):
 
 import matplotlib.pyplot as plt
 
-# %% Local (package-scoped) imports - used for tests inside a module
-if __name__ == "__main__":
-    from utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
-else:
-    from .utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
+from .utils.fitting_funcs import default_f_params, gaussian_f, gaussian_leveled_f, lorentzian_f, parabola_f
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -116,7 +112,7 @@ class PeakFit2D():
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
-        self.functions = [gaussian_f, parabola_f]
+        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
     
@@ -143,9 +139,9 @@ class PeakFit2D():
         if f_name in self.function_names and x_range in self.function_ranges:
             i = self.function_names.index(f_name)
             if x_range == self.function_ranges[0]:
-                x_norm = np.linspace(start=0.0, stop=1.0, num=100)
+                x_norm = np.linspace(start=0.0, stop=1.0, num=251)
             else:
-                x_norm = np.linspace(start=-1.0, stop=1.0, num=200)
+                x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
             y_norm = self.functions[i](x_norm, *self.function_params[f_name][x_range])
             if not plt.isinteractive():
                 plt.ion()
@@ -174,6 +170,8 @@ class PeakFit2D():
     def is_vect_ascending(x: nparray) -> tuple[bool, nparray]:
         """
         Check and return if x vector is unique it in ascending order.
+        
+        Data type 'nparray': NDArray[np.floating] | NDArray[np.integer]
 
         Parameters
         ----------
@@ -201,9 +199,3 @@ class PeakFit2D():
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)
 __all__ = ['PeakFit2D']
-
-# %% Only for development purposes, transfer it to test script
-if __name__ == "__main__":
-    pf = PeakFit2D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
-    # pf.plot_norm(); pf.plot_norm(x_range="-1,1")  # Gaussian function check
-    pf.plot_norm(f_name=pf.function_names[1]); pf.plot_norm(f_name=pf.function_names[1], x_range="-1,1")
