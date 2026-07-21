@@ -22,8 +22,22 @@ with suppress(ImportError):
 
 import matplotlib.pyplot as plt
 
-from .utils.fitting_funcs import (default_f_params, full_f_names, gaussian_f, gaussian_leveled_f, line_f, lorentzian_f, parabola_f, sech_f,
-                                  bump_f, witch_agnesi_f)
+from .utils.fitting_funcs import (
+    bump_f,
+    cosine_f,
+    default_f_params,
+    full_f_names,
+    gaussian_f,
+    gaussian_leveled_f,
+    laplace_pdf_f,
+    line_f,
+    logistic_derivative_f,
+    lorentzian_f,
+    parabola_f,
+    rayleigh_pdf_f,
+    sech_f,
+    witch_agnesi_f,
+)
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -113,7 +127,8 @@ class PeakFit2D():
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
-        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f]
+        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
+                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
     
@@ -147,7 +162,7 @@ class PeakFit2D():
             if not plt.isinteractive():
                 plt.ion()
             full_f_name = full_f_names.get(f_name, 'Curve'); x_r = "[0.0, 1.0]" if x_range == self.function_ranges[0] else "[-1.0, 1.0]"
-            plt.figure(f"{full_f_name} X={x_r}, {x_range} params"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
+            plt.figure(f"{full_f_name} X={x_r}"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
         else:
             if f_name not in self.function_names:
                 warnings.warn(f"\nFunction '{f_name}' not found in the list of supported functions: {self.functions}", stacklevel=2)

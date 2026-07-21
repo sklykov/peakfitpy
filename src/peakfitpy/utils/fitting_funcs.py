@@ -16,12 +16,16 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "line_f": {"0,1": [0.0, 0.5], "-1,1": [0.0, 0.5]}, 
                     "sech_f": {"0,1": [2.0, 8.0, 0.5], "-1,1": [2.0, 4.0, 0.0]}, 
                     "bump_f": {"-1,1": [1.001, 2.0]}, 
-                    "witch_agnesi_f": {"0,1": [0.25, 0.5], "-1,1": [0.25, 0.0]}, 
-                    }
+                    "witch_agnesi_f": {"0,1": [0.1, 0.5], "-1,1": [0.25, 0.0]}, 
+                    "logistic_derivative_f": {"0,1": [4.0, 10.0, 0.5], "-1,1": [4.0, 5.0, 0.0]},
+                    "cosine_f": {"0,1": [1.0, pi, 0.5*pi], "-1,1": [1.0, 0.5*pi, 0.0]},
+                    "rayleigh_pdf_f": {"0,1": [0.25, 1.0, 0.0]},
+                    "laplace_pdf_f":{"0,1": [0.5, 0.125, 1.0], "-1,1": [0.0, 0.25, 1.0]}}
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function", 
-                "witch_agnesi_f": "Witch of Agnesi Function"}
+                "witch_agnesi_f": "Witch of Agnesi Function", "logistic_derivative_f": "Derivative of Logistic Function",
+                "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "laplace_pdf_f": "Laplace PDF"}
 
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -228,11 +232,11 @@ def witch_agnesi_f(X: np.ndarray, a: float, m: float) -> np.ndarray:
     return (8.0*a**3)/((X-m)**2 + 2.0*a**2)
 
 
-def logistic_derivative_f(X: np.ndarray, k: float) -> np.ndarray:
+def logistic_derivative_f(X: np.ndarray, k: float, a: float, b: float) -> np.ndarray:
     """
     Parametric derivative of logistic function.
     
-    Equation: Y = k*exp(X) / (1.0 + exp(X))^2 \n
+    Equation: Y = k*exp(a*(X-b)) / (1.0 + exp(a*(X-b))^2 \n
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -241,17 +245,21 @@ def logistic_derivative_f(X: np.ndarray, k: float) -> np.ndarray:
         Function values.
     k : float
         Scaling coefficient, for normalized values default is k = 1/2.
+    a : float
+        Scaling of X values coefficients.
+    b : float
+        Shift of the peak from X=0.0
 
     Returns
     -------
     np.ndarray
-        Y = k*exp(X) / (1.0 + exp(X))^2.
+        Y = k*exp(a*(X-b)) / (1.0 + exp(a*(X-b)))^2.
     """
-    expX = np.exp(X)
+    expX = np.exp(a*(X-b))
     return k*(expX / np.power((1.0 + expX), 2))
 
 
-def cosine_f(X: np.ndarray, k: float, a:float) -> np.ndarray:
+def cosine_f(X: np.ndarray, k: float, a: float, b: float) -> np.ndarray:
     """
     Parametric cosine function.
     
@@ -265,20 +273,22 @@ def cosine_f(X: np.ndarray, k: float, a:float) -> np.ndarray:
         Scaling (amplitude) coefficient.
     a : float
         Phase scaling coefficient.
+    b : float
+        Phase shift for a peak from X = 0.0
 
     Returns
     -------
     np.ndarray
-        Y = k*cos(a*X).
+        Y = k*cos(a*X-b).
     """
-    return k*np.cos(a*X)
+    return k*np.cos(a*X-b)
 
 
-def rayleigh_pdf_f(X: np.ndarray, sigma: float, k: float) -> np.ndarray:
+def rayleigh_pdf_f(X: np.ndarray, sigma: float, k: float, b: float) -> np.ndarray:
     """
     Parametric Rayleigh distribution PDF function.
     
-    Equation: Y = (k*X / sigma^2)*exp(-X^2/2*sigma^2) \n
+    Equation: Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2) \n
     Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
 
     Parameters
@@ -289,13 +299,15 @@ def rayleigh_pdf_f(X: np.ndarray, sigma: float, k: float) -> np.ndarray:
         Scaling parameter.
     k : float
         Amplitude parameter.
+    b : float
+        Peak-shift parameter (from peak at X = 0.0)
 
     Returns
     -------
     np.ndarray
-        Y = (k*X / sigma^2)*exp(-X^2/2*sigma^2).
+        Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2).
     """
-    sigma2 = sigma**2
+    sigma2 = sigma**2; X = np.abs(X - b)
     return ((k*X)/sigma2)*np.exp(-(X**2)/(2.0*sigma2))
 
 
