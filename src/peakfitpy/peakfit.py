@@ -169,6 +169,33 @@ class PeakFit2D():
             if x_range not in self.function_ranges:
                 warnings.warn(f"\n X_range '{x_range}' not recognized (supported: {self.function_ranges})", stacklevel=2)
     
+    def plot_all_defaults(self):
+        """
+        Plot interactively all implemented curves for ranges [0, 1] and [-1, 1] with their default values.
+
+        Returns
+        -------
+        None
+        """
+        if not plt.isinteractive():
+            plt.ion()
+        plt.figure("All curves with default parameters for [0, 1] range", figsize=(13, 8.5))
+        x_norm = np.linspace(start=0.0, stop=1.0, num=251)
+        for f_name in self.function_names:
+            if self.function_ranges[0] in self.function_params[f_name]:
+                i = self.function_names.index(f_name)
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[0]])
+                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
+        plt.legend(loc='best'); plt.tight_layout()
+        plt.figure("All curves with default parameters for [-1, 1] range", figsize=(13, 8.5))
+        x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
+        for f_name in self.function_names:
+            if self.function_ranges[1] in self.function_params[f_name]:
+                i = self.function_names.index(f_name)
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[1]])
+                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
+        plt.legend(loc='best'); plt.tight_layout()
+    
     # %% Data transformers
     def normalize_x(self, x: Real | nparray) -> Real | nparray:
         """
@@ -197,6 +224,22 @@ class PeakFit2D():
             if x < self.x_min or x > self.x_max:
                 raise ValueError("\nProvided element lays out of range of the initially used x array")
         return (x - self.x_min) / self.x_range
+    
+    def denormalize_x(self, x: Real | nparray) -> Real | nparray:
+        """
+        Return denormalized x using originally provided X data range.
+
+        Parameters
+        ----------
+        x : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Denormalized input value(-s) by using of initial X range.
+        """
+        return x*self.x_range + self.x_min
     
     def normalize_y(self, y: Real | nparray) -> Real | nparray:
         """
@@ -231,6 +274,22 @@ class PeakFit2D():
                 return type(y)(0)  # like explicitly int(0) or float(0)
             else:
                 return np.zeros_like(y)
+    
+    def denormalize_y(self, y: Real | nparray) -> Real | nparray:
+        """
+        Return denormalized y using originally provided Y data range.
+
+        Parameters
+        ----------
+        y : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Denormalized input value(-s) by using of initial Y range.
+        """
+        return y*self.y_range + self.y_min
     
     # %% Static useful methods
     @staticmethod

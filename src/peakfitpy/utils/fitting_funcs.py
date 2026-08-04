@@ -19,7 +19,7 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "witch_agnesi_f": {"0,1": [0.1, 0.5], "-1,1": [0.25, 0.0]}, 
                     "logistic_derivative_f": {"0,1": [4.0, 10.0, 0.5], "-1,1": [4.0, 5.0, 0.0]},
                     "cosine_f": {"0,1": [1.0, pi, 0.5*pi], "-1,1": [1.0, 0.5*pi, 0.0]},
-                    "rayleigh_pdf_f": {"0,1": [0.25, 1.0, 0.0]},
+                    "rayleigh_pdf_f": {"0,1": [0.25, 0.4, 0.0]},
                     "laplace_pdf_f":{"0,1": [0.5, 0.125, 1.0], "-1,1": [0.0, 0.25, 1.0]}}
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
