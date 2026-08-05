@@ -24,8 +24,9 @@ if __name__ == "__main__":
     # pf.plot_norm(f_name=pf.function_names[7]); pf.plot_norm(f_name=pf.function_names[7], x_range="-1,1")  # Witch of Agnesi
     # pf.plot_norm(f_name=pf.function_names[8]); pf.plot_norm(f_name=pf.function_names[8], x_range="-1,1")  # Deriv. Logistic F()
     # pf.plot_norm(f_name=pf.function_names[9]); pf.plot_norm(f_name=pf.function_names[9], x_range="-1,1")  # Cosine
-    # pf.plot_norm(f_name=pf.function_names[10]) # Rayleigh PDF - only defined properly for [0.0, 1.0] range
-    # pf.plot_norm(f_name=pf.function_names[11]); pf.plot_norm(f_name=pf.function_names[11], x_range="-1,1")  # Laplace PDF
+    # pf.plot_norm(f_name=pf.function_names[10]) # Rayleigh PDF
+    # pf.plot_norm(f_name=pf.function_names[11]) # Mirrored Rayleigh PDF
+    # pf.plot_norm(f_name=pf.function_names[12]); pf.plot_norm(f_name=pf.function_names[11], x_range="-1,1")  # Laplace PDF
     
     # Composed plot for both ranges
     pf.plot_all_defaults()

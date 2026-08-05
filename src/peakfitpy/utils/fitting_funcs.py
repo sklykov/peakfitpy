@@ -19,13 +19,15 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "witch_agnesi_f": {"0,1": [0.1, 0.5], "-1,1": [0.25, 0.0]}, 
                     "logistic_derivative_f": {"0,1": [4.0, 10.0, 0.5], "-1,1": [4.0, 5.0, 0.0]},
                     "cosine_f": {"0,1": [1.0, pi, 0.5*pi], "-1,1": [1.0, 0.5*pi, 0.0]},
-                    "rayleigh_pdf_f": {"0,1": [0.25, 0.4, 0.0]},
+                    "rayleigh_pdf_f": {"0,1": [0.25, 0.41, 0.0], "-1,1": [0.61, 1.0, -1.0]},
+                    "rayleigh_inv_pdf_f": {"0,1": [0.25, 0.41, 1.0], "-1,1": [0.61, 1.0, 1.0]},
                     "laplace_pdf_f":{"0,1": [0.5, 0.125, 1.0], "-1,1": [0.0, 0.25, 1.0]}}
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function", 
                 "witch_agnesi_f": "Witch of Agnesi Function", "logistic_derivative_f": "Derivative of Logistic Function",
-                "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "laplace_pdf_f": "Laplace PDF"}
+                "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_inv_pdf_f": "Mirrored Rayleigh PDF", 
+                "laplace_pdf_f": "Laplace PDF"}
 
 
 def parabola_f(X: np.ndarray, a: float, b: float, c: float) -> np.ndarray:
@@ -308,6 +310,33 @@ def rayleigh_pdf_f(X: np.ndarray, sigma: float, k: float, b: float) -> np.ndarra
         Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2).
     """
     sigma2 = sigma**2; X = np.abs(X - b)
+    return ((k*X)/sigma2)*np.exp(-(X**2)/(2.0*sigma2))
+
+
+def rayleigh_inv_pdf_f(X: np.ndarray, sigma: float, k: float, b: float) -> np.ndarray:
+    """
+    Parametric mirrored (inversed around peak) Rayleigh distribution PDF function.
+    
+    Equation: Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2) \n
+    Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Function values.
+    sigma : float
+        Scaling parameter.
+    k : float
+        Amplitude parameter.
+    b : float
+        Peak-shift parameter (from peak at X = 0.0)
+
+    Returns
+    -------
+    np.ndarray
+        Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2).
+    """
+    sigma2 = sigma**2; X = np.abs(b - X)
     return ((k*X)/sigma2)*np.exp(-(X**2)/(2.0*sigma2))
 
 

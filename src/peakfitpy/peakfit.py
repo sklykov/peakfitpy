@@ -15,6 +15,7 @@ from typing import Any
 import matplotlib
 import numpy as np
 from numpy.typing import NDArray
+from scipy.optimize import curve_fit
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
 with suppress(ImportError):
@@ -34,6 +35,7 @@ from .utils.fitting_funcs import (
     logistic_derivative_f,
     lorentzian_f,
     parabola_f,
+    rayleigh_inv_pdf_f,
     rayleigh_pdf_f,
     sech_f,
     witch_agnesi_f,
@@ -47,7 +49,7 @@ nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 
 # %% Main class def.
 class PeakFit2D():
-    """Base class for fitting a single peak on 2D data (function y = f(x))."""
+    """Base class for fitting a single peak on 2D data (function y = f(x)) assuming finite and real valued, non-constant X and Y ranges."""
 
     x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; x_norm_m11 : np.ndarray; y_norm_01 : np.ndarray
     x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real
@@ -77,6 +79,7 @@ class PeakFit2D():
         ------
         ValueError
             If any of requirement on the input data not met.
+            
         """
         # Convert common sequence types to numpy arrays
         x = np.asarray(x) if isinstance(x, Sequence) else x  # Note: Runtime check cannot be done on Generic type (Sequence[Real])
@@ -101,6 +104,15 @@ class PeakFit2D():
         # Check that data contains only finite (no infinity and no NaNs) values
         if not np.isfinite(self.x_vals).all() or not np.isfinite(self.y_vals).all():
             raise ValueError("\nX and/or Y data contains infinite or NaN values")
+        # Check that data contains only real-valued numbers
+        if not np.all(np.isrealobj(self.x_vals)) or not np.all(np.isrealobj(self.y_vals)):
+            raise ValueError("\nX and/or Y data contains complex (not real) values")
+        # Check that the input arrays has minimal length of 2 - minimal required to fit line and bump function
+        if self.x_vals.shape[0] < 2 or self.y_vals.shape[0] < 2:
+            raise ValueError("\nX and/or Y data should be contain >= 2 values")
+        # Check data consistency - sizes of X and Y should be equal
+        if self.x_vals.shape[0] != self.y_vals.shape[0]:
+            raise ValueError("\nX and Y have different sizes (number of values). Expected equally sized arrays")
         # Check data consistency - x input data ascending
         if not np.all(self.x_vals[1:] > self.x_vals[:-1]):  # check elements sequentially shifted by 1 on both ends
             if np.unique(self.x_vals).size == self.x_vals.size:
@@ -116,23 +128,40 @@ class PeakFit2D():
         # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
-            self.x_norm_01 = (self.x_vals.copy() - self.x_min) / self.x_range # normalization to the [0.0, 1.0] range
-            self.x_norm_m11 = (self.x_norm_01.copy() - 0.5)*2.0  # recalculation for a symmetric range [-1.0, 1.0]
+            self.x_norm_01 = (self.x_vals.copy().astype(np.float64) - self.x_min) / self.x_range  # normalization to the [0.0, 1.0] range
+            self.x_norm_m11 = (self.x_norm_01.copy().astype(np.float64) - 0.5)*2.0  # recalculation for a symmetric range [-1.0, 1.0]
         else:
             raise ValueError("\nDifference of max and min values of X data results to a zero range")
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
-            self.y_norm_01 = (self.y_vals.copy() - self.y_min) / self.y_range
+            self.y_norm_01 = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
-                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f]
+                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
     
     # %% Fitting
+    def fit_best_norm(self):
+        warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings during a search
+        successful_fits = []  # store types of successfully fitted curves (function), its parameters + std
+        x_r = self.function_ranges[0]  # identifier of a used range or key "0,1" 
+        for function in self.functions:
+            if x_r in self.function_params[function.__name__]:  # check that function is defined on the X range [0, 1]
+                params = self.function_params[function.__name__][x_r]; params_len = len(params)  # number of parameters in a function
+                if params_len <= self.x_norm_01.shape[0]:  # number of measurement 
+                    try:
+                        fitted_f_params = curve_fit(function, self.x_norm_01, self.y_norm_01, p0=params)[0]  # fitting
+                        y_f = function(self.x_norm_01, *fitted_f_params)  # calculate function values using fitted parameters
+                        successful_fits.append((function, fitted_f_params, np.std(self.y_norm_01 - y_f)))
+                    except RuntimeError:
+                        pass
+    
+    def fit_best_norm_m11(self):
+        pass
     
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f', x_range: str="0,1"):
@@ -151,6 +180,7 @@ class PeakFit2D():
         Returns
         -------
         None
+        
         """
         if f_name in self.function_names and x_range in self.function_ranges and x_range in self.function_params[f_name]:
             i = self.function_names.index(f_name)
@@ -176,10 +206,11 @@ class PeakFit2D():
         Returns
         -------
         None
+        
         """
         if not plt.isinteractive():
             plt.ion()
-        plt.figure("All curves with default parameters for [0, 1] range", figsize=(13, 8.5))
+        plt.figure("All curves with default parameters for [0, 1] range", figsize=(14.2, 9.0))
         x_norm = np.linspace(start=0.0, stop=1.0, num=251)
         for f_name in self.function_names:
             if self.function_ranges[0] in self.function_params[f_name]:
@@ -199,7 +230,7 @@ class PeakFit2D():
     # %% Data transformers
     def normalize_x(self, x: Real | nparray) -> Real | nparray:
         """
-        Normalize new x values using the provided on the initialization data.
+        Normalize new (input) x values using the provided on the initialization data to the range [0, 1].
 
         Parameters
         ----------
@@ -215,19 +246,46 @@ class PeakFit2D():
         ------
         ValueError
             If provided values lay out of range of the initially used array.
+            
         """
         x = np.asarray(x) if isinstance(x, Sequence) else x
         if isinstance(x, np.ndarray):
+            if not np.all(np.isrealobj(x)):
+                raise ValueError("\nX contains complex values")
             if x.min() < self.x_min or x.max() > self.x_max:
                 raise ValueError("\nMin or Max element from provided x array lays out of range of initially used x array")
         else:
+            if not np.isrealobj(x):
+                raise ValueError("\nX is complex")
             if x < self.x_min or x > self.x_max:
                 raise ValueError("\nProvided element lays out of range of the initially used x array")
         return (x - self.x_min) / self.x_range
     
+    def normalize_m11_x(self, x: Real | nparray) -> Real | nparray:
+        """
+        Normalize new (input) x values using the provided on the initialization data to the range [-1, 1].
+
+        Parameters
+        ----------
+        x : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Normalized data.
+        
+        Raises
+        ------
+        ValueError
+            If provided values lay out of range of the initially used array.
+            
+        """
+        return (self.normalize_x(x) - 0.5)*2.0
+    
     def denormalize_x(self, x: Real | nparray) -> Real | nparray:
         """
-        Return denormalized x using originally provided X data range.
+        Return denormalized (from range [0, 1]) x using originally provided X data range.
 
         Parameters
         ----------
@@ -238,12 +296,30 @@ class PeakFit2D():
         -------
         Real | nparray
             Denormalized input value(-s) by using of initial X range.
+            
         """
         return x*self.x_range + self.x_min
     
+    def denormalize_m11_x(self, x: Real | nparray) -> Real | nparray:
+        """
+        Return denormalized (from range [-1, 1]) x using originally provided X data range.
+
+        Parameters
+        ----------
+        x : Real | nparray
+            Either Real number or numpy array.
+
+        Returns
+        -------
+        Real | nparray
+            Denormalized input value(-s) by using of initial X range.
+            
+        """
+        return self.denormalize_x(x*0.5 + 0.5) 
+    
     def normalize_y(self, y: Real | nparray) -> Real | nparray:
         """
-        Normalize new y values using the provided on the initialization data.
+        Normalize new (input) y values using the provided on the initialization data to the range [0, 1].
 
         Parameters
         ----------
@@ -259,20 +335,25 @@ class PeakFit2D():
         ------
         ValueError
             If provided values lay out of range of the initially used array.
+            
         """
         y = np.asarray(y) if isinstance(y, Sequence) else y
         if self.y_range != 0.0:
             if isinstance(y, np.ndarray):
+                if not np.all(np.isrealobj(y)):
+                    raise ValueError("\nY contains complex values")
                 if y.min() < self.y_min or y.max() > self.y_max:
                     raise ValueError("\nMin or Max element from provided y array lays out of range of initially used y array")
             else:
+                if not np.isrealobj(y):
+                    raise ValueError("\nY is complex")
                 if y < self.y_min or y > self.y_max:
                     raise ValueError("\nProvided element lays out of range of the initially used y array")
             return (y - self.y_min) / self.y_range
         else:
             if isinstance(y, Real):
                 return type(y)(0)  # like explicitly int(0) or float(0)
-            else:
+            elif isinstance(y, np.ndarray):
                 return np.zeros_like(y)
     
     def denormalize_y(self, y: Real | nparray) -> Real | nparray:
@@ -288,6 +369,7 @@ class PeakFit2D():
         -------
         Real | nparray
             Denormalized input value(-s) by using of initial Y range.
+            
         """
         return y*self.y_range + self.y_min
     
@@ -310,6 +392,7 @@ class PeakFit2D():
             True, if x vector checked / sorted in ascending order. False if it hasn't all unique values.
         nparray
             Sorted array in ascending order if it has all unique elements or initial array.
+            
         """
         is_ascending = np.all(x[1:] > x[:-1]); x_return = x
         if not is_ascending:

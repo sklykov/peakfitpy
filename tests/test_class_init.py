@@ -25,6 +25,7 @@ def test_class_initialization():
     None.
 
     """
+    # Testing normal input data with various shapes of arrays or data structures
     x = [i for i in range(5)]; y = np.zeros(shape=(5, ))  # normal vectors
     PeakFit2D(x=x, y=y)
     x = np.asarray([i*0.5 for i in range(5)])[:, None]; y = np.zeros(shape=(5, ))  # x convertible, shape (5, 1)
@@ -37,10 +38,32 @@ def test_class_initialization():
     try:
         x = np.zeros(shape=(5, 1)); y = np.zeros(shape=(5, 2))
         PeakFit2D(x, y)
+        raise AssertionError("\nInitialization accepted X and Y with different shapes")
     except ValueError:
         pass
     try:
         x = np.zeros(shape=(5, 3)); y = np.zeros(shape=(5, ))
         PeakFit2D(x, y)
+        raise AssertionError("\nInitialization accepted X and Y with different shapes")
     except ValueError:
         pass
+    # Testing wrong input data
+    try:
+        x = np.asarray([0.8, -1.0, 0.5, 0.3]); y = np.asarray([i*1.5 + 0.2 for i in range(6)])  # different sized X and Y
+        PeakFit2D(x, y)
+        raise AssertionError("\nInitialization accepted X and Y with different shapes")
+    except ValueError:
+        pass
+    try:
+        x = np.asarray([0.8, -1.0, 0.5, 0.3, 1j-2]); y = np.asarray([i*1.5 + 0.2 for i in range(5)])  # complex number in X
+        PeakFit2D(x, y)
+        raise AssertionError("\nAccepted X with complex number in it")
+    except ValueError:
+        pass
+    try:
+        x = np.asarray([0.8, -1.0, 0.5, 0.3, 10.0]); y = np.asarray([i*1.5 + 0.2 for i in range(4)].append(-1j))  # complex number in Y
+        PeakFit2D(x, y)
+        raise AssertionError("\nAccepted X with complex number in it")
+    except ValueError:
+        pass
+        
