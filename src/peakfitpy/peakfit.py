@@ -17,6 +17,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
+import random
+
 # For compatibility between running configurations in Spyder and PyCharm IDEs
 with suppress(ImportError):
     matplotlib.use('Qt5Agg')
@@ -39,6 +41,7 @@ from .utils.fitting_funcs import (
     rayleigh_pdf_f,
     sech_f,
     witch_agnesi_f,
+    get_peak,
 )
 
 # %% Module parameters
@@ -143,9 +146,10 @@ class PeakFit2D():
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ["0,1", "-1,1"]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
+        self.best_fit = None; self.peak_params = None
     
     # %% Fitting
-    def fit_best_norm(self):
+    def fit_best_norm(self, verbose: bool = False, plot_best_fit: bool = False):
         warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings during a search
         successful_fits = []  # store types of successfully fitted curves (function), its parameters + std
         x_r = self.function_ranges[0]  # identifier of a used range or key "0,1" 
@@ -159,6 +163,25 @@ class PeakFit2D():
                         successful_fits.append((function, fitted_f_params, np.std(self.y_norm_01 - y_f)))
                     except RuntimeError:
                         pass
+        if len(successful_fits) > 0:
+            successful_fits = sorted(successful_fits, key=lambda x: x[2])  # sort on STD
+            self.best_fit = successful_fits[0]  # best function along with parameters with minimal STD
+            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1], x_range="0,1")
+            if verbose:
+                print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| STD:", self.best_fit[2])
+            if plot_best_fit:
+                fig_id = random.randint(a=0, b=999)
+                if not plt.isinteractive():
+                    plt.ion()
+                x_norm = np.linspace(start=0.0, stop=1.0, num=251)
+                plt.figure(f"Best fit result {fig_id}"); plt.plot(self.x_norm_01, self.y_norm_01, "ro", ms=7, label="Input Values")
+                func_n = full_f_names.get(self.best_fit[0].__name__)
+                plt.plot(x_norm, self.best_fit[0](x_norm, *self.best_fit[1]), lw=3.0, label=f"Fitted {func_n}")
+                if self.peak_params[0]:
+                    plt.plot(self.peak_params[2], self.peak_params[3], "o", c='#45c70c', ms=9, label="Found Peak")
+                plt.legend(loc='best'); plt.tight_layout()
+        else:
+            __warn_m = "\nThere are no curve fitted for the provided values"; warnings.warn(__warn_m, stacklevel=2)
     
     def fit_best_norm_m11(self):
         pass

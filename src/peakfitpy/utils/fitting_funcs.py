@@ -379,10 +379,33 @@ def laplace_pdf_f(X: np.ndarray | float, m: float, b: float, k: float, d: float)
 
 
 # %% Define peak type and value
-def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool, float, float]:
+def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1") -> tuple[bool, bool, float, float]:
+    """
+    Get information of a peak (max) or minimum value for the provided function.
+
+    Parameters
+    ----------
+    f : Callable
+        Callable function.
+    fitted_params : tuple[float, ...]
+        Defined best (fitted) parameters of the function.
+    x_range : str, optional
+        X range used for fitting. The default is "0,1".
+
+    Returns
+    -------
+    bool
+        Function found in the list of implemented function and could provide information about the peak.
+    bool
+        The function defines maximum (peak), if False - the function defines minimum.
+    float
+        x value related to a peak.
+    float
+        y value related to a peak.
+    """
     is_definable = False; is_max = False; x0 = 0.0; y0 = 0.0
     if f.__name__ in default_f_params:
-        is_definable = True
+        is_definable = True  # by default function supposed to provide a peak value
         if f.__name__ == "parabola_f":
             a, b, c = fitted_params; is_max = a < 0.0  # parabola opens downward
             if a != 0.0:
@@ -412,12 +435,38 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
             a, m = fitted_params; is_max = a > 0.0
             x0 = m; y0 = witch_agnesi_f(x0, a, m)
         elif f.__name__ == "logistic_derivative_f":
-            k, a, b, d = fitted_params
+            k, a, b, d = fitted_params; is_max = k > 0.0
+            x0 = b; y0 = logistic_derivative_f(x0, k, a, b, d)
         elif f.__name__ == "cosine_f":
-            k, a, b = fitted_params
+            k, a, b = fitted_params; is_max = k > 0.0
+            if a != 0.0:
+                x0 = b/a; y0 = k
+            else:
+                is_definable = False  # it's just a line y = k*cos(-b)
         elif f.__name__ == "rayleigh_pdf_f" or f.__name__ == "rayleigh_inv_pdf_f":
-            s, k, b, d = fitted_params
+            s, k, b, d = fitted_params; is_max = k > 0.0
+            x01 = b - abs(s); x02 = b + abs(s)
+            if x_range in ["0,1", "-1,1"]:
+                if x_range == "0,1":
+                    x01_in_range = 0.0 <= x01 <= 1.0; x02_in_range = 0.0 <= x02 <= 1.0 
+                    if x01_in_range and x02_in_range:
+                        is_definable = False
+                    elif x01_in_range:
+                        x0 = x01; y0 = f(x01, s, k, b, d)
+                    elif x02_in_range:
+                        x0 = x02; y0 = f(x02, s, k, b, d)
+                else:
+                    x01_in_range = -1.0 <= x01 <= 1.0; x02_in_range = -1.0 <= x02 <= 1.0
+                    if x01_in_range and x02_in_range:
+                        is_definable = False
+                    elif x01_in_range:
+                        x0 = x01; y0 = f(x01, s, k, b, d)
+                    elif x02_in_range:
+                        x0 = x02; y0 = f(x02, s, k, b, d)
+            else:
+                is_definable = False           
         elif f.__name__ == "laplace_pdf_f":
-            m, b, k, d = fitted_params
-        
+            m, b, k, d = fitted_params; is_max = k > 0.0
+            x0 = m; y0 = laplace_pdf_f(x0, m, b, k, d) 
+
     return is_definable, is_max, x0, y0
