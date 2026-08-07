@@ -33,4 +33,5 @@ if __name__ == "__main__":
 
     # Test fitting
     pf2 =  PeakFit2D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
-    pf2.fit_best_norm(verbose=True, plot_best_fit=True)
+    pf2.fit_function(verbose=True, plot_best_fit=True)
+    pf2.fit_function(verbose=True, plot_best_fit=True, x_range="-1,1")
