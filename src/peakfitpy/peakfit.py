@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 from .utils.fitting_funcs import (
     bump_f,
     cosine_f,
+    cubic_polynomial,
     default_f_params,
     full_f_names,
     gaussian_f,
@@ -142,7 +143,7 @@ class PeakFit2D():
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
-                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f]
+                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f, cubic_polynomial]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.used_fit_range = None

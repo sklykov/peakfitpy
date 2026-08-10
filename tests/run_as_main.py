@@ -9,7 +9,7 @@ import numpy as np
 
 from peakfitpy import PeakFit2D
 
-plot_all_curves_with_defaults = False
+plot_all_curves_with_defaults = True
 test_simple_case = False
 
 

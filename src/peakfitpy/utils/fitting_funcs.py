@@ -22,13 +22,15 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "cosine_f": {"0,1": [1.0, pi, 0.5*pi], "-1,1": [1.0, 0.5*pi, 0.0]},
                     "rayleigh_pdf_f": {"0,1": [0.25, 0.41, 0.0, 0.0], "-1,1": [0.61, 1.0, -1.0, 0.0]},
                     "rayleigh_inv_pdf_f": {"0,1": [0.25, 0.41, 1.0, 0.0], "-1,1": [0.61, 1.0, 1.0, 0.0]},
-                    "laplace_pdf_f":{"0,1": [0.5, 0.125, 1.0, 0.0], "-1,1": [0.0, 0.25, 1.0, 0.0]}}
+                    "laplace_pdf_f": {"0,1": [0.5, 0.125, 1.0, 0.0], "-1,1": [0.0, 0.25, 1.0, 0.0]},
+                    "cubic_polynomial": {"0,1": [-3.472, 1.389, 2.083, 0.0], "-1,1":  [-0.2041, -0.99, 0.2041, 0.99]},
+                    }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const", 
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function", 
                 "witch_agnesi_f": "Witch of Agnesi Function", "logistic_derivative_f": "Derivative of Logistic Function",
                 "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_inv_pdf_f": "Mirrored Rayleigh PDF", 
-                "laplace_pdf_f": "Laplace PDF"}
+                "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial"}
 
 
 # %% Function def-s
@@ -467,16 +469,10 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
             if a != 0.0:
                 x0 = -(0.5*b)/a  # defined from the 1st derivative
                 if x_range in ["0,1", "-1,1"]:
-                    if x_range == "0,1":
-                        if 0.0 <= x0 <= 1.0: 
-                            y0 = parabola_f(x0, a, b, c)
-                        else:
-                            is_definable = False  # peak / valley lays out of provided range
+                    if (x_range == "0,1" and 0.0 <= x0 <= 1.0) or (x_range == "-1,1" and -1.0 <= x0 <= 1.0):
+                        y0 = parabola_f(x0, a, b, c)
                     else:
-                        if -1.0 <= x0 <= 1.0: 
-                            y0 = parabola_f(x0, a, b, c)
-                        else:
-                            is_definable = False  # peak / valley lays out of provided range
+                        is_definable = False  # peak / valley lays out of provided range   
                 else:
                     is_definable = False 
             else:
@@ -509,7 +505,14 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
         elif f.__name__ == "cosine_f":
             k, a, b = fitted_params; is_max = k > 0.0
             if a != 0.0:
-                x0 = b/a; y0 = k
+                x0 = b/a
+                if x_range in ["0,1", "-1,1"]:
+                    if (x_range == "0,1" and 0.0 <= x0 <= 1.0) or (x_range == "-1,1" and -1.0 <= x0 <= 1.0):
+                        y0 = k
+                    else:
+                        is_definable = False  # peak / valley lays out of provided range
+                else:
+                    is_definable = False  
             else:
                 is_definable = False  # it's just a line y = k*cos(-b)
         elif f.__name__ == "rayleigh_pdf_f" or f.__name__ == "rayleigh_inv_pdf_f":
@@ -518,28 +521,55 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
             if x_range in ["0,1", "-1,1"]:
                 if x_range == "0,1":
                     x01_in_range = 0.0 <= x01 <= 1.0; x02_in_range = 0.0 <= x02 <= 1.0 
-                    if x01_in_range and x02_in_range:
-                        is_definable = False
-                    elif x01_in_range:
-                        x0 = x01; y0 = f(x01, s, k, b, d)
-                    elif x02_in_range:
-                        x0 = x02; y0 = f(x02, s, k, b, d)
-                    else:
-                        is_definable = False  # peak / valley lays out of provided range
                 else:
                     x01_in_range = -1.0 <= x01 <= 1.0; x02_in_range = -1.0 <= x02 <= 1.0
-                    if x01_in_range and x02_in_range:
-                        is_definable = False
-                    elif x01_in_range:
-                        x0 = x01; y0 = f(x01, s, k, b, d)
-                    elif x02_in_range:
-                        x0 = x02; y0 = f(x02, s, k, b, d)
-                    else:
-                        is_definable = False  # peak / valley lays out of provided range
+                if x01_in_range and x02_in_range:
+                    is_definable = False
+                elif x01_in_range:
+                    x0 = x01; y0 = f(x01, s, k, b, d)
+                elif x02_in_range:
+                    x0 = x02; y0 = f(x02, s, k, b, d)
+                else:
+                    is_definable = False  # peak / valley lays out of provided range
             else:
                 is_definable = False           
         elif f.__name__ == "laplace_pdf_f":
             m, b, k, d = fitted_params; is_max = k > 0.0
             x0 = m; y0 = laplace_pdf_f(x0, m, b, k, d) 
-
+        elif f.__name__ == "cubic_polynomial":
+            a, b, c, d = fitted_params; discriminant_dx = b**2 - 3*a*c  # f'(x) = 0 for extreme, f'(x) = 3ax^2 + 2b*x + c
+            if discriminant_dx > 0:  # two roots - one max, one min
+                x01 = (-b + np.sqrt(discriminant_dx))/(3.0*a); x02 = (-b - np.sqrt(discriminant_dx))/(3.0*a)
+                if x_range in ["0,1", "-1,1"]:
+                    if x_range == "0,1":
+                        x01_in_range = 0.0 <= x01 <= 1.0; x02_in_range = 0.0 <= x02 <= 1.0 
+                        ya = cubic_polynomial(0.0, a, b, c, d); yb = cubic_polynomial(1.0, a, b, c, d)
+                    else:
+                        x01_in_range = -1.0 <= x01 <= 1.0; x02_in_range = -1.0 <= x02 <= 1.0
+                        ya = cubic_polynomial(-1.0, a, b, c, d); yb = cubic_polynomial(1.0, a, b, c, d)
+                    # based on defined x1, x2 location provide an estimation of only a peak
+                    if x01_in_range and x02_in_range:  # both local min and max are within a range
+                        is_max_01 = 6.0*a*x01 + 2.0*b < 0.0; y01 = cubic_polynomial(x01, a, b, c, d)
+                        is_max_02 = 6.0*a*x02 + 2.0*b < 0.0; y02 = cubic_polynomial(x02, a, b, c, d)
+                        # pure max for a range and point x01 or x02 only local max, should report x01 as a fallback
+                        if (is_max_01 and y01 > ya and y01 > yb) or (is_max_02 and (y02 < ya or y02 < yb)):  
+                            is_max = is_max_01; x0 = x01; y0 = y01
+                        # x01 local only max, should report other point as fallback, or x02 is pure max
+                        elif (is_max_01 and (y01 < ya or y01 < yb)) or (is_max_02 and y02 > ya and y02 > yb):
+                            is_max = is_max_02; x0 = x02; y0 = y02
+                        else:
+                            is_definable = False
+                    elif x01_in_range:
+                        is_max = 6.0*a*x01 + 2.0*b < 0.0  # based on the 2nd order derivative conditions f''(x) < 0.0 = max
+                        x0 = x01; y0 = cubic_polynomial(x0, a, b, c, d)
+                    elif x02_in_range:
+                        is_max = 6.0*a*x02 + 2.0*b < 0.0  # based on the 2nd order derivative conditions f''(x) < 0.0 = max
+                        x0 = x02; y0 = cubic_polynomial(x0, a, b, c, d)
+                    else:
+                        is_definable = False
+                else:
+                    is_definable = False
+            else:
+                is_definable = False  # either there is no max / min, or it's stationary inflection point (f(x) = x^3 it is x = 0)
+            
     return is_definable, is_max, x0, y0
