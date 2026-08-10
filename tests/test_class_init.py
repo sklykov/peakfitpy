@@ -66,4 +66,31 @@ def test_class_initialization():
         raise AssertionError("\nAccepted X with complex number in it")
     except ValueError:
         pass
+
+    
+def test_basic_fitting():
+    """
+    Test different fitting scenarios.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    AssertionError
+        If some expected cause hasn't happen.
         
+    """
+    pf = PeakFit2D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
+    pf.fit_function(); xp, yp = pf.get_peak_values()
+    if xp is not None and yp is not None:
+        assert 34 <= xp <= 44 and yp >= 240, f"Defined peak {xp, yp} lays out expected ranges: x in [34, 44], y >= 240"
+    else:
+        raise AssertionError("\nPeak hasn't been found for the simple basic case")
+    # test the same data for the fitting on -1,1 normalized X range
+    pf.fit_function(x_range="-1,1"); xp, yp = pf.get_peak_values()
+    if xp is not None and yp is not None:
+        assert 34 <= xp <= 44 and yp >= 240, f"Defined peak {xp, yp} lays out expected ranges: x in [34, 44], y >= 240"
+    else:
+        raise AssertionError("\nPeak hasn't been found for the simple basic case")

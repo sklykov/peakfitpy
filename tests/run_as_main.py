@@ -9,10 +9,15 @@ import numpy as np
 
 from peakfitpy import PeakFit2D
 
+plot_all_curves_with_defaults = False
+test_simple_case = False
+
+
 # %% Only for development purposes
 if __name__ == "__main__":
+    
     pf = PeakFit2D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
-
+    
     # Individual plots with default parameters
     # pf.plot_norm(); pf.plot_norm(x_range="-1,1")  # Gaussian plotting
     # pf.plot_norm(f_name=pf.function_names[1]); pf.plot_norm(f_name=pf.function_names[1], x_range="-1,1")  # Parabola
@@ -29,9 +34,16 @@ if __name__ == "__main__":
     # pf.plot_norm(f_name=pf.function_names[12]); pf.plot_norm(f_name=pf.function_names[11], x_range="-1,1")  # Laplace PDF
 
     # Composed plot for both ranges
-    pf.plot_all_defaults()
+    if plot_all_curves_with_defaults:
+        pf.plot_all_defaults()
 
-    # Test fitting
-    pf2 =  PeakFit2D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
-    pf2.fit_function(verbose=True, plot_best_fit=True)
-    pf2.fit_function(verbose=True, plot_best_fit=True, x_range="-1,1")
+    # Test fitting on the simple set
+    if test_simple_case:
+        pf2 =  PeakFit2D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
+        pf2.fit_function(verbose=True, plot_best_fit=True)
+        pf2.fit_function(verbose=True, plot_best_fit=True, x_range="-1,1")
+    
+    # Generate some complex examples and visualize the fitting
+    x = np.asarray([(1.75*i + 2.2) for i in range(20)])
+    y = 0.1*x**4 - 3.0*x**3 + x**2 + 1.0  # some undefined in a list of implemented functions function
+    pf = PeakFit2D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)

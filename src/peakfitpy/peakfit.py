@@ -229,7 +229,8 @@ class PeakFit2D():
                     func_n = full_f_names.get(self.best_fit[0].__name__)
                     plt.plot(x_plot_vals, self.best_fit[0](x_plot_vals, *self.best_fit[1]), lw=3.0, label=f"Fitted {func_n}")
                     if self.peak_params[0]:
-                        plt.plot(self.peak_params[2], self.peak_params[3], "o", c='#45c70c', ms=9, label="Found Peak")
+                        pl = "Found Peak" if self.peak_params[1] else "Found Valley"
+                        plt.plot(self.peak_params[2], self.peak_params[3], "o", c='#45c70c', ms=9, label=pl)
                     plt.legend(loc='best'); plt.tight_layout()
                 plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
                 plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values")
@@ -240,17 +241,40 @@ class PeakFit2D():
                     x_raw_scaled = self.denormalize_m11_x(x_plot_vals)
                 plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
                 if self.peak_params[0]:
-                    if self.used_fit_range == self.function_ranges[0]:
-                        plt.plot(self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3]), "o", c='#45c70c',
-                                 ms=9, label="Found Peak")
-                    else:
-                        plt.plot(self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3]), "o", c='#45c70c',
-                                 ms=9, label="Found Peak")
+                    pl = "Found Peak" if self.peak_params[1] else "Found Valley"
+                    xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
         else:
             __warn_m = "\nThere are no curve fitted for the provided values"; warnings.warn(__warn_m, stacklevel=2)
             self.best_fit = None; self.peak_params = None; self.used_fit_range = None  # store that there is no best_fit function found
         return curve_fitted, peak_defined
+    
+    def get_peak_values(self, original: bool = True) -> tuple[float, float] | tuple[None, None]:
+        """
+        Return in a tuple x, y coordinates if the peak has been defined.
+
+        Parameters
+        ----------
+        original : bool, optional
+            Flag for returning the x, y in the original scales if True,\n
+            else - using selected normalizing scale for X and [0,1] normalization for Y. The default is True.
+
+        Returns
+        -------
+        tuple[float, float] | tuple[None, None]
+            Coordinates of a defined peak x, y or None if fitting hasn't been done or peak cannot be defined.
+            
+        """
+        if self.best_fit is not None and self.peak_params is not None and self.used_fit_range is not None and self.peak_params[0]:
+            if original:
+                if self.used_fit_range == self.function_ranges[0]:
+                    return self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                else:
+                    return self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+            else:
+                return self.peak_params[2], self.peak_params[3]
+        else:
+            return None, None
 
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f', x_range: str="0,1"):
@@ -520,6 +544,27 @@ class PeakFit2D():
                 else:  # sorting is required
                     x_return = np.sort(x, kind='stable'); is_ascending = True
         return is_ascending, x_return
+    
+    @staticmethod
+    def add_awgn(y: nparray, noise_fraction: float = 0.075) -> nparray:
+        """
+        Add to the input y array Gaussian noise with zero average ("Additive White Gaussian Noise").
+
+        Parameters
+        ----------
+        y : nparray
+            Original array.
+        noise_fraction : float, optional
+            Max STD of noise as percentage/100. The default is 0.075.
+
+        Returns
+        -------
+        nparray
+            y + additive Gaussian noise.
+            
+        """
+        rng = np.random.default_rng(); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
+        return y + rng.normal(loc=0.0, scale=noise_std, shape=y.shape)
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)

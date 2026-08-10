@@ -310,7 +310,7 @@ def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: f
     k : float
         Amplitude parameter.
     b : float
-        Peak-shift parameter (from peak at X = 0.0).
+        Symmetry center of a function.
     d : float
         Constant level if measurement tails are constant (not decay to zero).
 
@@ -327,7 +327,7 @@ def rayleigh_inv_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, 
     """
     Parametric mirrored (inversed around peak) Rayleigh distribution PDF function.
     
-    Equation: Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2) + d \n
+    Equation: Y = (k*|b-X| / sigma^2)*exp(-(X-b)^2/2*sigma^2) + d \n
     Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
 
     Parameters
@@ -339,12 +339,14 @@ def rayleigh_inv_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, 
     k : float
         Amplitude parameter.
     b : float
-        Peak-shift parameter (from peak at X = 0.0)
+        Symmetry center of a function.
+    d : float
+        Constant level if measurement tails are constant (not decay to zero).
 
     Returns
     -------
     np.ndarray | float
-        Y = (k*|X-b| / sigma^2)*exp(-(X-b)^2/2*sigma^2) +d.
+        Y = (k*|b-X| / sigma^2)*exp(-(X-b)^2/2*sigma^2) +d.
     """
     sigma2 = sigma**2; X = np.abs(b - X)
     return ((k*X)/sigma2)*np.exp(-(X**2)/(2.0*sigma2)) + d
@@ -378,6 +380,60 @@ def laplace_pdf_f(X: np.ndarray | float, m: float, b: float, k: float, d: float)
     return k*np.exp(-np.abs(X - m)/b) + d
 
 
+def quartic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: float, e: float) -> np.ndarray | float:
+    """
+    Callable quartic polynomial function for fitting.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    a : float
+        Coefficient on x^4.
+    b : float
+        Coefficient on x^3.
+    c : float
+        Coefficient on x^2.
+    d : float
+        Coefficient on x^1.
+    e : float
+        Coefficient on x^0.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = a*X^4 + b*X^3 + c*X^2 + d*X + e.
+
+    """
+    return a*(X**4) + b*(X**3) + c*(X**2) + d*X + e
+
+
+def cubic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: float) -> np.ndarray | float:
+    """
+    Callable cubic polynomial function for fitting.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    a : float
+        Coefficient on x^3.
+    b : float
+        Coefficient on x^2.
+    c : float
+        Coefficient on x^1.
+    d : float
+        Coefficient on x^0.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = a*X^3 + b*X^2 + c*X + d.
+
+    """
+    return a*(X**3) + b*(X**2) + c*X + d
+
+
 # %% Define peak type and value
 def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1") -> tuple[bool, bool, float, float]:
     """
@@ -409,7 +465,20 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
         if f.__name__ == "parabola_f":
             a, b, c = fitted_params; is_max = a < 0.0  # parabola opens downward
             if a != 0.0:
-                x0 = -(0.5*b)/a; y0 = parabola_f(x0, a, b, c)
+                x0 = -(0.5*b)/a  # defined from the 1st derivative
+                if x_range in ["0,1", "-1,1"]:
+                    if x_range == "0,1":
+                        if 0.0 <= x0 <= 1.0: 
+                            y0 = parabola_f(x0, a, b, c)
+                        else:
+                            is_definable = False  # peak / valley lays out of provided range
+                    else:
+                        if -1.0 <= x0 <= 1.0: 
+                            y0 = parabola_f(x0, a, b, c)
+                        else:
+                            is_definable = False  # peak / valley lays out of provided range
+                else:
+                    is_definable = False 
             else:
                 is_definable = False  # it's not really a parabola, it's just a line
         elif f.__name__ == "gaussian_f":
@@ -455,6 +524,8 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
                         x0 = x01; y0 = f(x01, s, k, b, d)
                     elif x02_in_range:
                         x0 = x02; y0 = f(x02, s, k, b, d)
+                    else:
+                        is_definable = False  # peak / valley lays out of provided range
                 else:
                     x01_in_range = -1.0 <= x01 <= 1.0; x02_in_range = -1.0 <= x02 <= 1.0
                     if x01_in_range and x02_in_range:
@@ -463,6 +534,8 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
                         x0 = x01; y0 = f(x01, s, k, b, d)
                     elif x02_in_range:
                         x0 = x02; y0 = f(x02, s, k, b, d)
+                    else:
+                        is_definable = False  # peak / valley lays out of provided range
             else:
                 is_definable = False           
         elif f.__name__ == "laplace_pdf_f":
