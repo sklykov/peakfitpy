@@ -38,6 +38,7 @@ from .utils.fitting_funcs import (
     logistic_derivative_f,
     lorentzian_f,
     parabola_f,
+    quartic_polynomial,
     rayleigh_inv_pdf_f,
     rayleigh_pdf_f,
     sech_f,
@@ -143,7 +144,8 @@ class PeakFit2D():
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
-                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f, cubic_polynomial]
+                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f, cubic_polynomial,
+                          quartic_polynomial]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.used_fit_range = None
@@ -249,7 +251,7 @@ class PeakFit2D():
             __warn_m = "\nThere are no curve fitted for the provided values"; warnings.warn(__warn_m, stacklevel=2)
             self.best_fit = None; self.peak_params = None; self.used_fit_range = None  # store that there is no best_fit function found
         return curve_fitted, peak_defined
-    
+
     def get_peak_values(self, original: bool = True) -> tuple[float, float] | tuple[None, None]:
         """
         Return in a tuple x, y coordinates if the peak has been defined.
@@ -264,7 +266,7 @@ class PeakFit2D():
         -------
         tuple[float, float] | tuple[None, None]
             Coordinates of a defined peak x, y or None if fitting hasn't been done or peak cannot be defined.
-            
+
         """
         if self.best_fit is not None and self.peak_params is not None and self.used_fit_range is not None and self.peak_params[0]:
             if original:
@@ -545,7 +547,7 @@ class PeakFit2D():
                 else:  # sorting is required
                     x_return = np.sort(x, kind='stable'); is_ascending = True
         return is_ascending, x_return
-    
+
     @staticmethod
     def add_awgn(y: nparray, noise_fraction: float = 0.075) -> nparray:
         """
@@ -562,7 +564,7 @@ class PeakFit2D():
         -------
         nparray
             y + additive Gaussian noise.
-            
+
         """
         rng = np.random.default_rng(); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
         return y + rng.normal(loc=0.0, scale=noise_std, shape=y.shape)
