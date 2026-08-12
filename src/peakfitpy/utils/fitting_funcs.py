@@ -24,8 +24,8 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "rayleigh_inv_pdf_f": {"0,1": [0.25, 0.41, 1.0, 0.0], "-1,1": [0.61, 1.0, 1.0, 0.0]},
                     "laplace_pdf_f": {"0,1": [0.5, 0.125, 1.0, 0.0], "-1,1": [0.0, 0.25, 1.0, 0.0]},
                     "cubic_polynomial": {"0,1": [-3.472, 1.389, 2.083, 0.0], "-1,1":  [-0.2041, -0.99, 0.2041, 0.99]},
-                    "quartic_polynomial":  {"0,1":  [-1.0, 5.272, -9.9878, 5.7156, 0.0],
-                                            "-1,1": [-0.5, 0.1041, -0.4947, -0.1041, 0.9947]},
+                    "quartic_polynomial":  {"0,1":  [-5.0, 12.472, -13.828, 6.356, 0.0],
+                                            "-1,1": [-0.7, 0.0641, -0.2967, -0.0641, 0.9967]},
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
@@ -33,6 +33,22 @@ full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_le
                 "witch_agnesi_f": "Witch of Agnesi Function", "logistic_derivative_f": "Derivative of Logistic Function",
                 "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_inv_pdf_f": "Mirrored Rayleigh PDF",
                 "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",}
+
+# Symmetric around the max / min functions
+symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f", "witch_agnesi_f", 
+                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f")
+
+# Generic / assymetric functions
+generic_f_names = ("rayleigh_pdf_f", "rayleigh_inv_pdf_f", "cubic_polynomial", "quartic_polynomial")
+
+tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0]
+
+# Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: a - not restricted, b - to the padded X range, sigma > tol
+params_boundaries = {"gaussian_f": {"0,1": ([-np.inf, -1.0, tol], [np.inf, 2.0, np.inf]), 
+                                    "-1,1": ([-np.inf, -2.0, tol], [np.inf, 2.0, np.inf])},   
+                     "gaussian_leveled_f" : {"0,1": ([-np.inf, -1.0, tol, -np.inf], [np.inf, 2.0, np.inf, np.inf]),
+                                             "-1,1": ([-np.inf, -2.0, tol, -np.inf], [np.inf, 2.0, np.inf, np.inf])},
+                     }
 
 
 # %% Function def-s

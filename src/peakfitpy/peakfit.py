@@ -32,16 +32,19 @@ from .utils.fitting_funcs import (
     full_f_names,
     gaussian_f,
     gaussian_leveled_f,
+    generic_f_names,
     get_peak,
     laplace_pdf_f,
     line_f,
     logistic_derivative_f,
     lorentzian_f,
     parabola_f,
+    params_boundaries,
     quartic_polynomial,
     rayleigh_inv_pdf_f,
     rayleigh_pdf_f,
     sech_f,
+    symmetric_f_names,
     witch_agnesi_f,
 )
 
@@ -203,10 +206,17 @@ class PeakFit2D():
         for function in self.functions:
             if self.used_fit_range in self.function_params[function.__name__]:  # check that function is defined on the X range [0, 1]
                 params = self.function_params[function.__name__][self.used_fit_range]
+                params_limits = params_boundaries.get(function, None)  # get the boundaries for fitting parameters for both ranges
+                if params_limits is not None:
+                    params_limits = params_limits.get(self.used_fit_range, None)  # limit to the used X range
                 params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
                 if params_len <= x_fit_vals.shape[0]:  # number of measurement
                     try:
-                        fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # fitting
+                        if params_limits is None:  
+                            fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                        else:
+                            # below - restrained on parameters fitting
+                            fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
                         y_f = function(x_fit_vals, *fitted_f_params)  # calculate function values using fitted parameters
                         successful_fits.append((function, fitted_f_params, np.sqrt(np.mean((self.y_norm_01 - y_f)**2))))
                     except RuntimeError:
@@ -326,18 +336,34 @@ class PeakFit2D():
         """
         if not plt.isinteractive():
             plt.ion()
-        plt.figure("All curves with default parameters for [0, 1] range", figsize=(14.2, 9.0))
+        plt.figure("All symmetric around max curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
         x_norm = np.linspace(start=0.0, stop=1.0, num=251)
         for f_name in self.function_names:
-            if self.function_ranges[0] in self.function_params[f_name]:
+            if self.function_ranges[0] in self.function_params[f_name] and f_name in symmetric_f_names:
                 i = self.function_names.index(f_name)
                 y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[0]])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
-        plt.figure("All curves with default parameters for [-1, 1] range", figsize=(13, 8.5))
+        plt.figure("All symmetric around max curves with default parameters for [-1, 1] range", figsize=(11.0, 7.5))
         x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
         for f_name in self.function_names:
-            if self.function_ranges[1] in self.function_params[f_name]:
+            if self.function_ranges[1] in self.function_params[f_name] and f_name in symmetric_f_names:
+                i = self.function_names.index(f_name)
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[1]])
+                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
+        plt.legend(loc='best'); plt.tight_layout()
+        plt.figure("All generic / assymetric curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
+        x_norm = np.linspace(start=0.0, stop=1.0, num=251)
+        for f_name in self.function_names:
+            if self.function_ranges[0] in self.function_params[f_name] and f_name in generic_f_names:
+                i = self.function_names.index(f_name)
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[0]])
+                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
+        plt.legend(loc='best'); plt.tight_layout()
+        plt.figure("All generic / assymetric curves with default parameters for [-1, 1] range", figsize=(11.0, 7.5))
+        x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
+        for f_name in self.function_names:
+            if self.function_ranges[1] in self.function_params[f_name] and f_name in generic_f_names:
                 i = self.function_names.index(f_name)
                 y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[1]])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
