@@ -41,8 +41,8 @@ from .utils.fitting_funcs import (
     parabola_f,
     params_boundaries,
     quartic_polynomial,
-    rayleigh_inv_pdf_f,
     rayleigh_pdf_f,
+    rayleigh_pdf_mirrored_f,
     sech_f,
     symmetric_f_names,
     witch_agnesi_f,
@@ -147,8 +147,8 @@ class PeakFit2D():
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
-                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, rayleigh_inv_pdf_f, laplace_pdf_f, cubic_polynomial,
-                          quartic_polynomial]
+                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
+                          rayleigh_pdf_mirrored_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.used_fit_range = None
@@ -212,7 +212,7 @@ class PeakFit2D():
                 params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
                 if params_len <= x_fit_vals.shape[0]:  # number of measurement
                     try:
-                        if params_limits is None:  
+                        if params_limits is None:
                             fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
                         else:
                             # below - restrained on parameters fitting
@@ -255,14 +255,14 @@ class PeakFit2D():
                 plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
                 if self.peak_params[0]:
                     pl = "Found Peak" if self.peak_params[1] else "Found Valley"
-                    xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
+                    is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
         else:
             __warn_m = "\nThere are no curve fitted for the provided values"; warnings.warn(__warn_m, stacklevel=2)
             self.best_fit = None; self.peak_params = None; self.used_fit_range = None  # store that there is no best_fit function found
         return curve_fitted, peak_defined
 
-    def get_peak_values(self, original: bool = True) -> tuple[float, float] | tuple[None, None]:
+    def get_peak_values(self, original: bool = True) -> tuple[bool, float, float] | tuple[None, None, None]:
         """
         Return in a tuple x, y coordinates if the peak has been defined.
 
@@ -274,20 +274,21 @@ class PeakFit2D():
 
         Returns
         -------
-        tuple[float, float] | tuple[None, None]
-            Coordinates of a defined peak x, y or None if fitting hasn't been done or peak cannot be defined.
+        tuple[bool, float, float] | tuple[None, None, None]
+            True if it is a peak and False if it is a valley + \n
+            coordinates of a defined peak x, y or None for all values if fitting hasn't been done or peak cannot be defined.
 
         """
         if self.best_fit is not None and self.peak_params is not None and self.used_fit_range is not None and self.peak_params[0]:
             if original:
                 if self.used_fit_range == self.function_ranges[0]:
-                    return self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                    return self.peak_params[0], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
                 else:
-                    return self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                    return self.peak_params[0], self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
             else:
-                return self.peak_params[2], self.peak_params[3]
+                return self.peak_params[0], self.peak_params[2], self.peak_params[3]
         else:
-            return None, None
+            return None, None, None
 
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f', x_range: str="0,1"):
