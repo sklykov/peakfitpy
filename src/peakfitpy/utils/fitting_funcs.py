@@ -26,17 +26,19 @@ default_f_params = {"gaussian_f": {"0,1": [1.0, 0.5, 0.2], "-1,1": [1.0, 0.0, 0.
                     "cubic_polynomial": {"0,1": [-3.472, 1.389, 2.083, 0.0], "-1,1":  [-0.2041, -0.99, 0.2041, 0.99]},
                     "quartic_polynomial":  {"0,1":  [-5.0, 12.472, -13.828, 6.356, 0.0],
                                             "-1,1": [-0.7, 0.0641, -0.2967, -0.0641, 0.9967]},
+                    "generalized_gaussian_f": {"0,1": [0.2, 3.5, 0.5, 1.0, 0.0], "-1,1": [0.4, 3.5, 0.0, 1.0, 0.0]}
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function",
                 "witch_agnesi_f": "Witch of Agnesi", "logistic_derivative_f": "Derivative of Logistic",
                 "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
-                "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",}
+                "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
+                "generalized_gaussian_f": "Generalized Gaussian",}
 
 # Symmetric around the max / min functions
 symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f", "witch_agnesi_f",
-                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f")
+                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f", "generalized_gaussian_f")
 
 # Generic / assymetric functions
 generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial")
@@ -69,6 +71,8 @@ params_boundaries = {"gaussian_f": {"0,1": ([-np.inf, x01_min, tol], [np.inf, x_
                                                  "-1,1": ([tol, -np.inf, xm11_min, d_min], [np.inf, np.inf, x_max, d_max])},
                      "laplace_pdf_f": {"0,1": ([x01_min, tol, -np.inf, d_min], [x_max, np.inf, np.inf, d_max]),
                                         "-1,1": ([xm11_min, tol, -np.inf, d_min], [x_max, np.inf, np.inf, d_max])},
+                     "generalized_gaussian_f": {"0,1": ([tol, 1.0, x01_min, -np.inf, d_min], [np.inf, 10.0, x_max, np.inf, d_max]),
+                                                "-1,1": ([tol, 1.0, xm11_min, -np.inf, d_min], [np.inf, 10.0, x_max, np.inf, d_max])}
                      }
 
 
@@ -126,7 +130,7 @@ def gaussian_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarra
 
 def gaussian_leveled_f(X: np.ndarray | float, a: float, b: float, c: float, d: float) -> np.ndarray | float:
     """
-    Parametric Gaussian function with fitting of non-zero level (asympotic minimal Y value) for fitting.
+    Parametric Gaussian function with fitting of non-zero level (asympotic minimal Y value).
 
     Equation: a*exp((-(X-b)^2)/(2*c^2)) + d.
 
@@ -141,7 +145,7 @@ def gaussian_leveled_f(X: np.ndarray | float, a: float, b: float, c: float, d: f
     c : float
         See equation. Sigma value.
     d : float
-        See equation. Constant shift (non-zero) value.
+        Constant level.
 
     Returns
     -------
@@ -150,6 +154,37 @@ def gaussian_leveled_f(X: np.ndarray | float, a: float, b: float, c: float, d: f
 
     """
     return a*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
+
+
+def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float, k: float, d: float) -> np.ndarray | float:
+    """
+    Parametric generalized (with arbitrary within exp) Gaussian function.
+
+    Equation: k*exp(-|(X-m)/w|^st) + d.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    w : float
+        Width of distribution.
+    st : float
+        Power within exp.
+    m : float
+        Extreme point (symmetry point).
+    k : float
+        Amplitude coefficient.
+    d : float
+        Constant level.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = k*exp(-|(X-m)/w|^st) + d.
+
+    """
+    z = np.abs((X-m)/w)
+    return d + k*np.exp(-np.power(z, st))
 
 
 def lorentzian_f(X: np.ndarray | float, a: float, b: float, k: float, d: float) -> np.ndarray | float:
@@ -618,6 +653,12 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1"
                 y0 = laplace_pdf_f(x0, m, b, k, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
+        elif f.__name__ == "generalized_gaussian_f":
+            w, st, m, k, d = fitted_params; is_max = k > 0.0; x0 = m
+            if ((x_range == "0,1" and 0.0 <= x0 <= 1.0) or (x_range == "-1,1" and -1.0 <= x0 <= 1.0)) and abs(k) >= tol:
+                y0 = generalized_gaussian_f(x0, w, st, m, k, d)
+            else:
+                is_definable = False  # peak outside the range or a parameter wrongly fitted
         elif f.__name__ == "cubic_polynomial":
             a, b, c, d = fitted_params; discriminant_dx = b**2 - 3*a*c  # f'(x) = 0 for extreme, f'(x) = 3ax^2 + 2b*x + c
             if discriminant_dx > 0 and abs(a) >= tol:  # two roots - one max, one min

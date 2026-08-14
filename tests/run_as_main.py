@@ -45,5 +45,5 @@ if __name__ == "__main__":
 
     # Generate some complex examples and visualize the fitting
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
-    y = np.exp(-(x - b*1.1)**6/12.0)  # some undefined in a list of implemented functions function
-    pf = PeakFit2D(x, y); pf.fit_function(verbose=False, plot_best_fit=True)
+    y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
+    pf = PeakFit2D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)

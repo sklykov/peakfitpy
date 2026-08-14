@@ -97,7 +97,7 @@ def test_basic_fitting():
     assert is_peak, "The peak should be fitted, not valley"
     # test not implemented function what should be fitted
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
-    y = np.exp(-(x - b*1.1)**6/12.0)  # some undefined in a list of implemented functions function
+    y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
     pf = PeakFit2D(x, y); pf.fit_function(); is_peak, xp, yp = pf.get_peak_values()
     if xp is not None and yp is not None:
         assert 14.5 <= xp <= 18.5 and yp >= 0.9, f"Defined peak {xp, yp} lays out expected ranges: x in [34, 44], y >= 240"

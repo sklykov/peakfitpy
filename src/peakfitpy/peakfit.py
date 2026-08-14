@@ -32,6 +32,7 @@ from .utils.fitting_funcs import (
     full_f_names,
     gaussian_f,
     gaussian_leveled_f,
+    generalized_gaussian_f,
     generic_f_names,
     get_peak,
     laplace_pdf_f,
@@ -148,7 +149,7 @@ class PeakFit2D():
         # Available functions report
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
-                          rayleigh_pdf_mirrored_f]
+                          rayleigh_pdf_mirrored_f, generalized_gaussian_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.used_fit_range = None
@@ -196,34 +197,35 @@ class PeakFit2D():
                 self.used_fit_range = "0,1"
         else:
             self.used_fit_range = x_range
-        warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings during a search
-        successful_fits = []  # store types of successfully fitted curves (function), its parameters + std
-        if self.used_fit_range == self.function_ranges[0]:
-            x_fit_vals = self.x_norm_01
-        else:
-            x_fit_vals = self.x_norm_m11
-        # Fitting loop
-        for function in self.functions:
-            if self.used_fit_range in self.function_params[function.__name__]:  # check that function is defined on the X range [0, 1]
-                params = self.function_params[function.__name__][self.used_fit_range]
-                params_limits = params_boundaries.get(function, None)  # get the boundaries for fitting parameters for both ranges
-                if params_limits is not None:
-                    params_limits = params_limits.get(self.used_fit_range, None)  # limit to the used X range
-                params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
-                if params_len <= x_fit_vals.shape[0]:  # number of measurement
-                    try:
-                        if params_limits is None:
-                            fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
-                        else:
-                            # below - restrained on parameters fitting
-                            fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
-                        y_f = function(x_fit_vals, *fitted_f_params)  # calculate function values using fitted parameters
-                        successful_fits.append((function, fitted_f_params, np.sqrt(np.mean((self.y_norm_01 - y_f)**2))))
-                    except RuntimeError:
-                        pass
+        successful_fits = []  # store types of successfully fitted curves (function), its parameters + RMSE
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
+            if self.used_fit_range == self.function_ranges[0]:
+                x_fit_vals = self.x_norm_01
+            else:
+                x_fit_vals = self.x_norm_m11
+            # Fitting loop
+            for function in self.functions:
+                if self.used_fit_range in self.function_params[function.__name__]:  # check that function is defined on the X range [0, 1]
+                    params = self.function_params[function.__name__][self.used_fit_range]
+                    params_limits = params_boundaries.get(function.__name__, None)  # get the boundaries for fitting parameters for both ranges
+                    if params_limits is not None:
+                        params_limits = params_limits.get(self.used_fit_range, None)  # limit to the used X range
+                    params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
+                    if params_len <= x_fit_vals.shape[0]:  # number of measurement
+                        try:
+                            if params_limits is None:
+                                fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                            else:
+                                # below - restrained on parameters fitting
+                                fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
+                            y_f = function(x_fit_vals, *fitted_f_params)  # calculate function values using fitted parameters
+                            successful_fits.append((function, fitted_f_params, np.sqrt(np.mean((self.y_norm_01 - y_f)**2))))
+                        except RuntimeError:
+                            pass
         if len(successful_fits) > 0:
-            successful_fits = sorted(successful_fits, key=lambda x: x[2])  # sort on STD
-            self.best_fit = successful_fits[0]  # best function along with parameters with minimal STD
+            successful_fits = sorted(successful_fits, key=lambda x: x[2])  # sort on RMSE
+            self.best_fit = successful_fits[0]  # best function along with parameters with minimal RMSE
             self.peak_params = get_peak(self.best_fit[0], self.best_fit[1], x_range=self.used_fit_range)
             curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:
@@ -282,11 +284,11 @@ class PeakFit2D():
         if self.best_fit is not None and self.peak_params is not None and self.used_fit_range is not None and self.peak_params[0]:
             if original:
                 if self.used_fit_range == self.function_ranges[0]:
-                    return self.peak_params[0], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                    return self.peak_params[1], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
                 else:
-                    return self.peak_params[0], self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                    return self.peak_params[1], self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
             else:
-                return self.peak_params[0], self.peak_params[2], self.peak_params[3]
+                return self.peak_params[1], self.peak_params[2], self.peak_params[3]
         else:
             return None, None, None
 
@@ -594,7 +596,7 @@ class PeakFit2D():
 
         """
         rng = np.random.default_rng(); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
-        return y + rng.normal(loc=0.0, scale=noise_std, shape=y.shape)
+        return y + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)
