@@ -11,6 +11,6 @@ The "peakfitpy" package is intended for fitting 2D curves for possible location 
 __version__ = "0.0.1"  # Straightforward way of specifying package version and including it to the package attributes
 
 # Univesal logic for making all main classes and functions available after calling 'from project import *'
-from .peakfit import PeakFit2D
+from .peakfit import PeakFit1D
 
-__all__ = ['PeakFit2D']
+__all__ = ['PeakFit1D']

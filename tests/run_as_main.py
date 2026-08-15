@@ -7,7 +7,7 @@ Run some tests for peakfit library directly in this script without pytest usage.
 """
 import numpy as np
 
-from peakfitpy import PeakFit2D
+from peakfitpy import PeakFit1D
 
 plot_all_curves_with_defaults = True
 test_simple_case = False
@@ -16,7 +16,7 @@ test_simple_case = False
 # %% Only for development purposes
 if __name__ == "__main__":
 
-    pf = PeakFit2D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
+    pf = PeakFit1D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
 
     # Individual plots with default parameters
     # pf.plot_norm(); pf.plot_norm(x_range="-1,1")  # Gaussian plotting
@@ -39,11 +39,11 @@ if __name__ == "__main__":
 
     # Test fitting on the simple set
     if test_simple_case:
-        pf2 =  PeakFit2D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
+        pf2 =  PeakFit1D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
         pf2.fit_function(verbose=True, plot_best_fit=True)
         pf2.fit_function(verbose=True, plot_best_fit=True, x_range="-1,1")
 
     # Generate some complex examples and visualize the fitting
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
     y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
-    pf = PeakFit2D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)

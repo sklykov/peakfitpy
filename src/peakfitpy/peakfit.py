@@ -8,8 +8,9 @@ Main script with the class definition for peak fitting and retrieving properties
 # %% Global imports
 import random
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
+from copy import deepcopy
 from numbers import Real
 from typing import Any
 
@@ -56,8 +57,13 @@ nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 
 
 # %% Main class def.
-class PeakFit2D():
-    """Base class for fitting a single peak on 2D data (function y = f(x)) assuming finite and real valued, non-constant X and Y ranges."""
+class PeakFit1D():
+    """
+    Base class for fitting multiple curves on 1D sampled data (X).
+
+    1D data in the sense of function Y = f(X) and assuming finite and real valued, non-constant X and Y values.
+
+    """
 
     x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; x_norm_m11 : np.ndarray; y_norm_01 : np.ndarray
     x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real
@@ -152,7 +158,7 @@ class PeakFit2D():
                           rayleigh_pdf_mirrored_f, generalized_gaussian_f]
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
-        self.best_fit = None; self.peak_params = None; self.used_fit_range = None
+        self.best_fit = None; self.peak_params = None; self.used_fit_range = None; self.all_fits = []; self.best_fit_criteria = ""
 
     # %% Fitting
     def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, x_range: str = "0,1") -> tuple[bool, bool]:
@@ -183,6 +189,8 @@ class PeakFit2D():
 
         """
         curve_fitted = False; peak_defined = False  # default return values
+        previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
+        previous_criteria = self.best_fit_criteria; self.best_fit_criteria = ""; nan_ic_calculated = False
         # Check input parameter x_range for accepting
         if x_range not in self.function_ranges:
             if len(self.function_ranges) > 0:
@@ -197,7 +205,6 @@ class PeakFit2D():
                 self.used_fit_range = "0,1"
         else:
             self.used_fit_range = x_range
-        successful_fits = []  # store types of successfully fitted curves (function), its parameters + RMSE
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
             if self.used_fit_range == self.function_ranges[0]:
@@ -212,7 +219,7 @@ class PeakFit2D():
                     if params_limits is not None:
                         params_limits = params_limits.get(self.used_fit_range, None)  # limit to the used X range
                     params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
-                    if params_len <= x_fit_vals.shape[0]:  # number of measurement
+                    if params_len <= x_fit_vals.shape[0]:  # X values should be
                         try:
                             if params_limits is None:
                                 fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
@@ -220,16 +227,27 @@ class PeakFit2D():
                                 # below - restrained on parameters fitting
                                 fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
                             y_f = function(x_fit_vals, *fitted_f_params)  # calculate function values using fitted parameters
-                            successful_fits.append((function, fitted_f_params, np.sqrt(np.mean((self.y_norm_01 - y_f)**2))))
+                            rmse = np.sqrt(np.mean((self.y_norm_01 - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
+                            if not nan_ic_calculated:
+                                nan_ic_calculated = np.isnan(criteria)
+                            self.all_fits.append((function, fitted_f_params, rmse, criteria))
                         except RuntimeError:
-                            pass
-        if len(successful_fits) > 0:
-            successful_fits = sorted(successful_fits, key=lambda x: x[2])  # sort on RMSE
+                            pass  # no succesful fit found
+        if len(self.all_fits) > 0:
+            # Select criteria for best fit selection: in any NaN calculated fallback to RMSE selection
+            if nan_ic_calculated:
+                successful_fits = sorted(self.all_fits, key=lambda x: x[2]); self.best_fit_criteria = "RMSE"   # sort on RMSE
+            else:
+                # sort on IC - Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
+                successful_fits = sorted(self.all_fits, key=lambda x: x[3]); self.best_fit_criteria = "IC"
             self.best_fit = successful_fits[0]  # best function along with parameters with minimal RMSE
             self.peak_params = get_peak(self.best_fit[0], self.best_fit[1], x_range=self.used_fit_range)
             curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:
-                print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| RMSE:", self.best_fit[2])
+                if self.best_fit_criteria == "RMSE":
+                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on RMSE:", self.best_fit[2])
+                else:
+                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on IC:", self.best_fit[3])
             if plot_best_fit:
                 fig_id = random.randint(a=0, b=999)
                 if not plt.isinteractive():
@@ -260,8 +278,9 @@ class PeakFit2D():
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
         else:
-            __warn_m = "\nThere are no curve fitted for the provided values"; warnings.warn(__warn_m, stacklevel=2)
+            __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"; warnings.warn(__warn_m, stacklevel=2)
             self.best_fit = None; self.peak_params = None; self.used_fit_range = None  # store that there is no best_fit function found
+            self.all_fits = deepcopy(previous_fits); self.best_fit_criteria = previous_criteria
         return curve_fitted, peak_defined
 
     def get_peak_values(self, original: bool = True) -> tuple[bool, float, float] | tuple[None, None, None]:
@@ -545,6 +564,36 @@ class PeakFit2D():
             __warn_m = "\nThere are no fitted function (curve) stored for calculation"; warnings.warn(__warn_m, stacklevel=2)
             return None
 
+    # %% Utility methods
+    def get_best_fit_criteria(self, f: Callable, rmse: float) -> float:
+        """
+        Get Corrected Akaike Information Criterion (AICc) or Bayesian Information Criterion (BIC).
+
+        Lower AICc and BIC values indicate a preferable balance between goodness of fit and model complexity:\n
+        more fitted parameters (K) => more flexible curve fitting.
+
+        Parameters
+        ----------
+        f : Callable
+            Succesfully fitted function.
+        rmse : float
+            Calculated RMSE.
+
+        Returns
+        -------
+        float | np.nan (what is effectively also type 'float')
+            Calculated float AICc or BIC if they can be defined, np.nan if they cannot be defined.
+
+        """
+        if f.__name__ in default_f_params:
+            N = self.x_norm_01.shape[0]; K = len(default_f_params[f.__name__][self.used_fit_range]) + 1  # number of function params + 1
+            if N > K + 1:
+                return N*np.log(rmse**2) + 2*K + (2*K*(K+1))/(N - K - 1)
+            else:
+                return N*np.log(rmse**2) + K*np.log(N)
+        else:
+            return np.nan
+
     # %% Static useful methods
     @staticmethod
     def is_vect_ascending(x: nparray) -> tuple[bool, nparray]:
@@ -600,4 +649,4 @@ class PeakFit2D():
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)
-__all__ = ['PeakFit2D']
+__all__ = ['PeakFit1D']
