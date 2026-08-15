@@ -537,6 +537,16 @@ def cubic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: flo
     return a*(X**3) + b*(X**2) + c*X + d
 
 
+def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d: float) -> np.ndarray | float:
+    z = (X - m)/w; zb = (1.0 + z**2)**(-beta)
+    return k*zb + d
+
+
+def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d: float) -> np.ndarray | float:
+    z = (X - m)/(pi*w)
+    return k*np.sinc(z) + d
+
+
 # %% Define peak type and value
 def get_peak(f: Callable, fitted_params: tuple[float, ...], x_range: str = "0,1") -> tuple[bool, bool, float, float]:
     """

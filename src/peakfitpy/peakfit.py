@@ -47,6 +47,7 @@ from .utils.fitting_funcs import (
     rayleigh_pdf_mirrored_f,
     sech_f,
     symmetric_f_names,
+    tol,
     witch_agnesi_f,
 )
 
@@ -587,6 +588,8 @@ class PeakFit1D():
         """
         if f.__name__ in default_f_params:
             N = self.x_norm_01.shape[0]; K = len(default_f_params[f.__name__][self.used_fit_range]) + 1  # number of function params + 1
+            if rmse < tol:
+                rmse = 1e-6  # clamp RMSE to the smallest meaninful value used for also in fitting_funcs.py
             if N > K + 1:
                 return N*np.log(rmse**2) + 2*K + (2*K*(K+1))/(N - K - 1)
             else:
