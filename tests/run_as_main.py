@@ -8,7 +8,7 @@ Run some tests for peakfit library directly in this script without pytest usage.
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import parabola_f, default_f_params
+from peakfitpy.utils.fitting_funcs import default_f_params, parabola_f
 
 plot_all_curves_with_defaults = True
 test_simple_case = False
@@ -42,7 +42,6 @@ if __name__ == "__main__":
     if test_simple_case:
         pf2 =  PeakFit1D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
         pf2.fit_function(verbose=True, plot_best_fit=True)
-        pf2.fit_function(verbose=True, plot_best_fit=True, x_range="-1,1")
 
     # Generate some complex examples and visualize the fitting
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
@@ -50,8 +49,8 @@ if __name__ == "__main__":
     pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
 
     # Test some function + noise data => fitting
-    x = np.asarray([(0.57*i - 5.0) for i in range(22)])
-    a, b, c = default_f_params[parabola_f.__name__]["-1,1"]
+    x = np.asarray([(0.57*i - 6.0) for i in range(22)])
+    a, b, c = default_f_params[parabola_f.__name__]
     y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
-    y = PeakFit1D.add_awgn(y)  # add Gaussian noise
+    y = PeakFit1D.add_awgn(y, noise_fraction=4e-2)  # add Gaussian noise
     pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)

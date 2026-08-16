@@ -16,8 +16,8 @@ from typing import Any
 
 import matplotlib
 import numpy as np
-from numpy.typing import NDArray
 from numpy.polynomial import Polynomial
+from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
@@ -67,7 +67,7 @@ class PeakFit1D():
 
     """
 
-    x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; x_norm_m11 : np.ndarray; y_norm_01 : np.ndarray
+    x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; y_norm_01 : np.ndarray
     x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
@@ -78,7 +78,7 @@ class PeakFit1D():
 
         Initialization logic automatically sort X values in ascending order along with corresponding Y values.\n
 
-        For fitting, X and Y values normalized to the range [0.0, 1.0] and X values - additionally to the range [-1.0, 1.0].\n
+        For fitting, X and Y values normalized to the range [0.0, 1.0].\n
 
         Parameters
         ----------
@@ -145,7 +145,6 @@ class PeakFit1D():
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
             self.x_norm_01 = (self.x_vals.copy().astype(np.float64) - self.x_min) / self.x_range  # normalization to the [0.0, 1.0] range
-            self.x_norm_m11 = (self.x_norm_01.copy().astype(np.float64) - 0.5)*2.0  # recalculation for a symmetric range [-1.0, 1.0]
         else:
             raise ValueError("\nDifference of max and min values of X data results to a zero range")
         # Normalize Y data to the range [0.0, 1.0]
@@ -158,16 +157,15 @@ class PeakFit1D():
         self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
                           rayleigh_pdf_mirrored_f, generalized_gaussian_f]
-        self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
+        self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
-        self.best_fit = None; self.peak_params = None; self.used_fit_range = None; self.all_fits = []; self.best_fit_criteria = ""
+        self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
         self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__)
 
     # %% Fitting
-    def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, x_range: str = "0,1",
-                     plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
+    def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
         """
-        Fit in a loop functions for normalized data (for '0,1' or '-1,1' ranges).
+        Fit in a loop functions for X, Y normalized data.
 
         Note that the Callable best function is stored as self.best_fit[0]. Defined (fitted) function parameters - in self.best_fit[1].\n
         Defined peak / valley: self.peak_params[0] - bool, flag that the position of peak can be defined,\n
@@ -180,9 +178,6 @@ class PeakFit1D():
             Flag for verbose printing out. The default is False.
         plot_best_fit : bool, optional
             Flag for plotting found curve + peak if defined. The default is False.
-        x_range : str, optional
-            Descriptor of the X range used for normalization: either [0.0, 1.0] that relates to x_range='0,1',\n
-            or [-1.0, 1.0] that relates to x_range='-1,1'. The default is "0,1".
         plot_norm_best_fit : bool, optional
             Flag for plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
             It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
@@ -199,52 +194,31 @@ class PeakFit1D():
         curve_fitted = False; peak_defined = False  # default return values
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
         previous_criteria = self.best_fit_criteria; self.best_fit_criteria = ""; nan_ic_calculated = False
-        # Check input parameter x_range for accepting
-        if x_range not in self.function_ranges:
-            if len(self.function_ranges) > 0:
-                x_range_mod = x_range.replace(" ", "")  # remove white space from identifier like '0, 1'
-                if x_range_mod in self.function_ranges:
-                    self.used_fit_range = x_range_mod
-                else:
-                    __warn_m = f"\nProvided {x_range} not found in {self.function_ranges}, used '0,1' as default"
-                    warnings.warn(__warn_m, stacklevel=2); self.used_fit_range = "0,1"
-            else:
-                __warn_m = "\nEmpty 'x_range' provided, used '0,1' as default"; warnings.warn(__warn_m, stacklevel=2)
-                self.used_fit_range = "0,1"
-        else:
-            self.used_fit_range = x_range
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
-            if self.used_fit_range == self.function_ranges[0]:
-                x_fit_vals = self.x_norm_01
-            else:
-                x_fit_vals = self.x_norm_m11
             # Fitting loop
             for function in self.functions:
-                if self.used_fit_range in self.function_params[function.__name__]:  # check that function is defined on the X range [0, 1]
-                    params = self.function_params[function.__name__][self.used_fit_range]
-                    params_limits = params_boundaries.get(function.__name__, None)  # get the boundaries for fitting parameters for both ranges
-                    if params_limits is not None:
-                        params_limits = params_limits.get(self.used_fit_range, None)  # limit to the used X range
-                    params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
-                    if params_len <= x_fit_vals.shape[0]:  # X values should be
-                        try:
-                            if params_limits is None:
-                                if function.__name__ in self.polynomials:
-                                    p = len(default_f_params[function.__name__][self.used_fit_range]) - 1
-                                    fitted_f_params = Polynomial.fit(x_fit_vals, self.y_norm_01, deg=p).convert()
-                                else:
-                                    fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                params = self.function_params[function.__name__]
+                params_limits = params_boundaries.get(function.__name__, None)  # get the boundaries for fitting parameters for both ranges
+                params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
+                if params_len <= self.x_norm_01.shape[0]:  # X values should be
+                    try:
+                        if params_limits is None:
+                            if function.__name__ in self.polynomials:
+                                p = len(default_f_params[function.__name__]) - 1
+                                fitted_f_params = Polynomial.fit(self.x_norm_01, self.y_norm_01, deg=p).convert()
                             else:
-                                # below - restrained on parameters fitting
-                                fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
-                            y_f = function(x_fit_vals, *fitted_f_params)  # calculate function values using fitted parameters
-                            rmse = np.sqrt(np.mean((self.y_norm_01 - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
-                            if not nan_ic_calculated:
-                                nan_ic_calculated = np.isnan(criteria)
-                            self.all_fits.append((function, fitted_f_params, rmse, criteria))
-                        except RuntimeError:
-                            pass  # no succesful fit found
+                                fitted_f_params = curve_fit(function, self.x_norm_01, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                        else:
+                            # below - restrained on parameters fitting
+                            fitted_f_params = curve_fit(function, self.x_norm_01, self.y_norm_01, p0=params, bounds=params_limits)[0]
+                        y_f = function(self.x_norm_01, *fitted_f_params)  # calculate function values using fitted parameters
+                        rmse = np.sqrt(np.mean((self.y_norm_01 - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
+                        if not nan_ic_calculated:
+                            nan_ic_calculated = np.isnan(criteria)
+                        self.all_fits.append((function, fitted_f_params, rmse, criteria))
+                    except RuntimeError:
+                        pass  # no succesful fit found
         if len(self.all_fits) > 0:
             # Select criteria for best fit selection: in any NaN calculated fallback to RMSE selection
             if nan_ic_calculated:
@@ -253,7 +227,7 @@ class PeakFit1D():
                 # sort on IC - Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
                 successful_fits = sorted(self.all_fits, key=lambda x: x[3]); self.best_fit_criteria = "IC"
             self.best_fit = successful_fits[0]  # best function along with parameters with minimal RMSE
-            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1], x_range=self.used_fit_range)
+            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1])
             curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:
                 if self.best_fit_criteria == "RMSE":
@@ -264,13 +238,10 @@ class PeakFit1D():
                 fig_id = random.randint(a=0, b=999)
                 if not plt.isinteractive():
                     plt.ion()
-                if self.used_fit_range == self.function_ranges[0]:
-                    x_plot_vals = np.linspace(start=0.0, stop=1.0, num=251)
-                else:
-                    x_plot_vals = np.linspace(start=-1.0, stop=1.0, num=501)
+                x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
                 if plot_norm_best_fit:
                     plt.figure(f"Best fit result - Normalized Values {fig_id}")
-                    plt.plot(x_fit_vals, self.y_norm_01, "ro", ms=7, label="Input Norm. Values")
+                    plt.plot(self.x_norm_01, self.y_norm_01, "ro", ms=7, label="Input Norm. Values")
                     func_n = full_f_names.get(self.best_fit[0].__name__)
                     plt.plot(x_plot_vals, self.best_fit[0](x_plot_vals, *self.best_fit[1]), lw=3.0, label=f"Fitted {func_n}")
                     if self.peak_params[0]:
@@ -279,11 +250,7 @@ class PeakFit1D():
                     plt.legend(loc='best'); plt.tight_layout()
                 plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
                 plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values")
-                func_n = full_f_names.get(self.best_fit[0].__name__)
-                if self.used_fit_range == self.function_ranges[0]:
-                    x_raw_scaled = self.denormalize_x(x_plot_vals)
-                else:
-                    x_raw_scaled = self.denormalize_m11_x(x_plot_vals)
+                func_n = full_f_names.get(self.best_fit[0].__name__, ""); x_raw_scaled = self.denormalize_x(x_plot_vals)
                 plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
                 if self.peak_params[0]:
                     pl = "Found Peak" if self.peak_params[1] else "Found Valley"
@@ -291,7 +258,7 @@ class PeakFit1D():
                 plt.legend(loc='best'); plt.tight_layout()
         else:
             __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"; warnings.warn(__warn_m, stacklevel=2)
-            self.best_fit = None; self.peak_params = None; self.used_fit_range = None  # store that there is no best_fit function found
+            self.best_fit = None; self.peak_params = None  # store that there is no best_fit function found
             self.all_fits = deepcopy(previous_fits); self.best_fit_criteria = previous_criteria
         return curve_fitted, peak_defined
 
@@ -312,19 +279,16 @@ class PeakFit1D():
             coordinates of a defined peak x, y or None for all values if fitting hasn't been done or peak cannot be defined.
 
         """
-        if self.best_fit is not None and self.peak_params is not None and self.used_fit_range is not None and self.peak_params[0]:
+        if self.best_fit is not None and self.peak_params is not None and self.peak_params[0]:
             if original:
-                if self.used_fit_range == self.function_ranges[0]:
-                    return self.peak_params[1], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
-                else:
-                    return self.peak_params[1], self.denormalize_m11_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                return self.peak_params[1], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
             else:
                 return self.peak_params[1], self.peak_params[2], self.peak_params[3]
         else:
             return None, None, None
 
     # %% Plotting
-    def plot_norm(self, f_name: str='gaussian_f', x_range: str="0,1"):
+    def plot_norm(self, f_name: str='gaussian_f'):
         """
         Plot interactively provided function for X values in the range [0.0, 1.0] (x_range="0,1") or [-1.0, 1.0] (x_range="-1,1").
 
@@ -334,34 +298,26 @@ class PeakFit1D():
         ----------
         f_name : str, optional
             Function name. The default is 'gaussian_f'.
-        x_range : str, optional
-            Range for X values for plotting and selection of default parameters for a function. The default is "0,1".
 
         Returns
         -------
         None
 
         """
-        if f_name in self.function_names and x_range in self.function_ranges and x_range in self.function_params[f_name]:
-            i = self.function_names.index(f_name)
-            if x_range == self.function_ranges[0]:
-                x_norm = np.linspace(start=0.0, stop=1.0, num=251)
-            else:
-                x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
-            y_norm = self.functions[i](x_norm, *self.function_params[f_name][x_range])
+        if f_name in self.function_names:
+            i = self.function_names.index(f_name); x_norm = np.linspace(start=0.0, stop=1.0, num=401)
+            y_norm = self.functions[i](x_norm, *self.function_params[f_name])
             if not plt.isinteractive():
                 plt.ion()
-            full_f_name = full_f_names.get(f_name, 'Curve'); x_r = "[0.0, 1.0]" if x_range == self.function_ranges[0] else "[-1.0, 1.0]"
+            full_f_name = full_f_names.get(f_name, 'Curve'); x_r = "[0.0, 1.0]"
             plt.figure(f"{full_f_name} X={x_r}"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
         else:
             if f_name not in self.function_names:
                 warnings.warn(f"\nFunction '{f_name}' not found in the list of supported functions: {self.functions}", stacklevel=2)
-            if x_range not in self.function_ranges:
-                warnings.warn(f"\n X_range '{x_range}' not recognized (supported: {self.function_ranges})", stacklevel=2)
 
     def plot_all_defaults(self):
         """
-        Plot interactively all implemented curves for ranges [0, 1] and [-1, 1] with their default values.
+        Plot interactively all implemented curves for range [0, 1] with their default values.
 
         Returns
         -------
@@ -371,35 +327,19 @@ class PeakFit1D():
         if not plt.isinteractive():
             plt.ion()
         plt.figure("All symmetric around max curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
-        x_norm = np.linspace(start=0.0, stop=1.0, num=251)
+        x_norm = np.linspace(start=0.0, stop=1.0, num=401)
         for f_name in self.function_names:
-            if self.function_ranges[0] in self.function_params[f_name] and f_name in symmetric_f_names:
+            if f_name in symmetric_f_names:
                 i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[0]])
-                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
-        plt.legend(loc='best'); plt.tight_layout()
-        plt.figure("All symmetric around max curves with default parameters for [-1, 1] range", figsize=(11.0, 7.5))
-        x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
-        for f_name in self.function_names:
-            if self.function_ranges[1] in self.function_params[f_name] and f_name in symmetric_f_names:
-                i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[1]])
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
         plt.figure("All generic / assymetric curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
-        x_norm = np.linspace(start=0.0, stop=1.0, num=251)
+        x_norm = np.linspace(start=0.0, stop=1.0, num=401)
         for f_name in self.function_names:
-            if self.function_ranges[0] in self.function_params[f_name] and f_name in generic_f_names:
+            if f_name in generic_f_names:
                 i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[0]])
-                plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
-        plt.legend(loc='best'); plt.tight_layout()
-        plt.figure("All generic / assymetric curves with default parameters for [-1, 1] range", figsize=(11.0, 7.5))
-        x_norm = np.linspace(start=-1.0, stop=1.0, num=501)
-        for f_name in self.function_names:
-            if self.function_ranges[1] in self.function_params[f_name] and f_name in generic_f_names:
-                i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name][self.function_ranges[1]])
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
 
@@ -437,28 +377,6 @@ class PeakFit1D():
                 raise ValueError("\nProvided element lays out of range of the initially used x array")
         return (x - self.x_min) / self.x_range
 
-    def normalize_m11_x(self, x: Real | nparray) -> Real | nparray:
-        """
-        Normalize new (input) x values using the provided on the initialization data to the range [-1, 1].
-
-        Parameters
-        ----------
-        x : Real | nparray
-            Either Real number or numpy array.
-
-        Returns
-        -------
-        Real | nparray
-            Normalized data.
-
-        Raises
-        ------
-        ValueError
-            If provided values lay out of range of the initially used array.
-
-        """
-        return (self.normalize_x(x) - 0.5)*2.0
-
     def denormalize_x(self, x: Real | nparray) -> Real | nparray:
         """
         Return denormalized (from range [0, 1]) x using originally provided X data range.
@@ -475,23 +393,6 @@ class PeakFit1D():
 
         """
         return x*self.x_range + self.x_min
-
-    def denormalize_m11_x(self, x: Real | nparray) -> Real | nparray:
-        """
-        Return denormalized (from range [-1, 1]) x using originally provided X data range.
-
-        Parameters
-        ----------
-        x : Real | nparray
-            Either Real number or numpy array.
-
-        Returns
-        -------
-        Real | nparray
-            Denormalized input value(-s) by using of initial X range.
-
-        """
-        return self.denormalize_x(x*0.5 + 0.5)
 
     def normalize_y(self, y: Real | nparray) -> Real | nparray:
         """
@@ -568,10 +469,7 @@ class PeakFit1D():
 
         """
         if self.best_fit is not None:
-            if self.used_fit_range == self.function_ranges[0]:
-                return self.denormalize_y(self.best_fit[0](self.normalize_x(x), *self.best_fit[1]))
-            else:
-                return self.denormalize_y(self.best_fit[0](self.normalize_m11_x(x), *self.best_fit[1]))
+            return self.denormalize_y(self.best_fit[0](self.normalize_x(x), *self.best_fit[1]))
         else:
             __warn_m = "\nThere are no fitted function (curve) stored for calculation"; warnings.warn(__warn_m, stacklevel=2)
             return None
@@ -598,7 +496,7 @@ class PeakFit1D():
 
         """
         if f.__name__ in default_f_params:
-            N = self.x_norm_01.shape[0]; K = len(default_f_params[f.__name__][self.used_fit_range]) + 1  # number of function params + 1
+            N = self.x_norm_01.shape[0]; K = len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
                 rmse = 1e-6  # clamp RMSE to the smallest meaninful value used for also in fitting_funcs.py
             if N > K + 1:
