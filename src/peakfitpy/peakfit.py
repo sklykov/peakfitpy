@@ -17,6 +17,7 @@ from typing import Any
 import matplotlib
 import numpy as np
 from numpy.typing import NDArray
+from numpy.polynomial import Polynomial
 from scipy.optimize import curve_fit
 
 # For compatibility between running configurations in Spyder and PyCharm IDEs
@@ -160,9 +161,11 @@ class PeakFit1D():
         self.function_names = [n.__name__ for n in self.functions]; self.function_ranges = ("0,1", "-1,1")
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.used_fit_range = None; self.all_fits = []; self.best_fit_criteria = ""
+        self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__)
 
     # %% Fitting
-    def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, x_range: str = "0,1") -> tuple[bool, bool]:
+    def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, x_range: str = "0,1",
+                     plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
         """
         Fit in a loop functions for normalized data (for '0,1' or '-1,1' ranges).
 
@@ -180,6 +183,10 @@ class PeakFit1D():
         x_range : str, optional
             Descriptor of the X range used for normalization: either [0.0, 1.0] that relates to x_range='0,1',\n
             or [-1.0, 1.0] that relates to x_range='-1,1'. The default is "0,1".
+        plot_norm_best_fit : bool, optional
+            Flag for plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
+            It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
+            The default is False.
 
         Returns
         -------
@@ -223,7 +230,11 @@ class PeakFit1D():
                     if params_len <= x_fit_vals.shape[0]:  # X values should be
                         try:
                             if params_limits is None:
-                                fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                                if function.__name__ in self.polynomials:
+                                    p = len(default_f_params[function.__name__][self.used_fit_range]) - 1
+                                    fitted_f_params = Polynomial.fit(x_fit_vals, self.y_norm_01, deg=p).convert()
+                                else:
+                                    fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params)[0]  # unrestrained fitting
                             else:
                                 # below - restrained on parameters fitting
                                 fitted_f_params = curve_fit(function, x_fit_vals, self.y_norm_01, p0=params, bounds=params_limits)[0]
@@ -257,7 +268,7 @@ class PeakFit1D():
                     x_plot_vals = np.linspace(start=0.0, stop=1.0, num=251)
                 else:
                     x_plot_vals = np.linspace(start=-1.0, stop=1.0, num=501)
-                if verbose:
+                if plot_norm_best_fit:
                     plt.figure(f"Best fit result - Normalized Values {fig_id}")
                     plt.plot(x_fit_vals, self.y_norm_01, "ro", ms=7, label="Input Norm. Values")
                     func_n = full_f_names.get(self.best_fit[0].__name__)

@@ -8,6 +8,7 @@ Run some tests for peakfit library directly in this script without pytest usage.
 import numpy as np
 
 from peakfitpy import PeakFit1D
+from peakfitpy.utils.fitting_funcs import parabola_f, default_f_params
 
 plot_all_curves_with_defaults = True
 test_simple_case = False
@@ -46,4 +47,11 @@ if __name__ == "__main__":
     # Generate some complex examples and visualize the fitting
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
     y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
+    pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+
+    # Test some function + noise data => fitting
+    x = np.asarray([(0.57*i - 5.0) for i in range(22)])
+    a, b, c = default_f_params[parabola_f.__name__]["-1,1"]
+    y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
+    y = PeakFit1D.add_awgn(y)  # add Gaussian noise
     pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
