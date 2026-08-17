@@ -31,6 +31,7 @@ from .utils.fitting_funcs import (
     cosine_f,
     cubic_polynomial,
     default_f_params,
+    emg_f,
     full_f_names,
     gaussian_f,
     gaussian_leveled_f,
@@ -41,12 +42,14 @@ from .utils.fitting_funcs import (
     line_f,
     logistic_derivative_f,
     lorentzian_f,
+    moffat_f,
     parabola_f,
     params_boundaries,
     quartic_polynomial,
     rayleigh_pdf_f,
     rayleigh_pdf_mirrored_f,
     sech_f,
+    sinc_sq_f,
     symmetric_f_names,
     tol,
     witch_agnesi_f,
@@ -156,7 +159,7 @@ class PeakFit1D():
         # Available functions report
         self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
-                          rayleigh_pdf_mirrored_f, generalized_gaussian_f)
+                          rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f)
         self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
@@ -231,9 +234,10 @@ class PeakFit1D():
             curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:
                 if self.best_fit_criteria == "RMSE":
-                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on RMSE:", self.best_fit[2])
+                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on RMSE:", 
+                          round(self.best_fit[2], 4))
                 else:
-                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on IC:", self.best_fit[3])
+                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on IC:", round(self.best_fit[3], 3))
             if plot_best_fit:
                 fig_id = random.randint(a=0, b=999)
                 if not plt.isinteractive():

@@ -82,6 +82,7 @@ def test_basic_fitting():
         If some expected cause hasn't happen.
 
     """
+    # Manually inserted values containing peak - basic test
     pf = PeakFit1D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
     pf.fit_function(); is_peak, xp, yp = pf.get_peak_values()
     if xp is not None and yp is not None:
@@ -89,7 +90,8 @@ def test_basic_fitting():
     else:
         raise AssertionError("\nPeak hasn't been found for the simple basic case")
     assert is_peak, "The peak should be fitted, not valley"
-    # test not implemented function what should be fitted
+    
+    # Test not implemented function what should be fitted
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
     y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
     pf = PeakFit1D(x, y); pf.fit_function(); is_peak, xp, yp = pf.get_peak_values()
@@ -98,3 +100,9 @@ def test_basic_fitting():
     else:
         raise AssertionError("\nPeak hasn't been found for the simple basic case")
     assert is_peak, "The peak should be fitted, not valley"
+    
+    # Test line fitting as fallback, baseline fitting
+    x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
+    pf = PeakFit1D(x, y); curve_fitted, peak_defined = pf.fit_function(); f_n = pf.best_fit[0].__name__
+    assert curve_fitted and not peak_defined, f"Curve should be fitted: {curve_fitted}, peak not defined or False: {peak_defined}"
+    assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"

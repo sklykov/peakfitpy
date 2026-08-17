@@ -9,6 +9,8 @@ from collections.abc import Callable
 from math import e, pi
 
 import numpy as np
+from scipy.stats import exponnorm
+from scipy.optimize import minimize_scalar
 
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
                     "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 8.0, 0.5, 0.0],
@@ -17,6 +19,7 @@ default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0
                     "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0],
                     "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
                     "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "generalized_gaussian_f": [0.2, 3.5, 0.5, 1.0, 0.0],
+                    "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0], 
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
@@ -24,33 +27,37 @@ full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_le
                 "witch_agnesi_f": "Witch of Agnesi", "logistic_derivative_f": "Derivative of Logistic",
                 "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
                 "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
-                "generalized_gaussian_f": "Generalized Gaussian",}
+                "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
+                "emg_f": "Exponentially Modified Gaussian PDF"}
 
 # Symmetric around the max / min functions
 symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f", "witch_agnesi_f",
-                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f", "generalized_gaussian_f")
+                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f")
 
 # Generic / assymetric functions
-generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial")
+generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial", "emg_f", "line_f")
 
 tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0] or [-1.0, 1.0]
 
 # Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: a - not restricted, b - to the padded X range, sigma > tol
 # rules: width of function commonly in [tol, +inf), k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
 # d - function baseline in padded Y range [-1.0, 2.0]
-d_min = -1.0; d_max = 2.0; x01_min = -1.0; x_max = 2.0; xm11_min = -2.0
-params_boundaries = {"gaussian_f": ([-np.inf, x01_min, tol], [np.inf, x_max, np.inf]),
-                     "gaussian_leveled_f" : ([-np.inf, x01_min, tol, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "lorentzian_f": ([tol, x01_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "sech_f": ([-np.inf, tol, x01_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "bump_f": ([tol, -np.inf, x01_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "witch_agnesi_f": ([tol, x01_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "logistic_derivative_f": ([-np.inf, tol, x01_min, d_min], [np.inf, np.inf, x_max, d_max]),
+d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0
+params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, np.inf]),
+                     "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, np.inf, d_max]),
+                     "lorentzian_f": ([tol, x_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
+                     "sech_f": ([-np.inf, tol, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
+                     "bump_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
+                     "witch_agnesi_f": ([tol, x_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
+                     "logistic_derivative_f": ([-np.inf, tol, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
                      "cosine_f": ([tol, tol, -pi], [np.inf, pi-tol, pi-tol]),
-                     "rayleigh_pdf_f": ([tol, -np.inf, x01_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x01_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "laplace_pdf_f": ([x01_min, tol, -np.inf, d_min], [x_max, np.inf, np.inf, d_max]),
-                     "generalized_gaussian_f": ([tol, 1.0, x01_min, -np.inf, d_min], [np.inf, 10.0, x_max, np.inf, d_max]),
+                     "rayleigh_pdf_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
+                     "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
+                     "laplace_pdf_f": ([x_min, tol, -np.inf, d_min], [x_max, np.inf, np.inf, d_max]),
+                     "generalized_gaussian_f": ([tol, 1.0, x_min, -np.inf, d_min], [np.inf, 10.0, x_max, np.inf, d_max]),
+                     "moffat_f": ([-np.inf, x_min, tol, 0.5, d_min], [np.inf, x_max, np.inf, 10.0, d_max]),
+                     "sinc_sq_f": ([-np.inf, 0.0, tol, d_min], [np.inf, 1.0, np.inf, d_max]),
+                     "emg_f": ([-np.inf, x_min, tol, tol, d_min], [np.inf, x_max, np.inf, np.inf, d_max]),
                      }
 
 
@@ -519,7 +526,9 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
     """
     Callable Moffat function for fitting.
 
-    Function Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d.
+    Function Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d. \n
+    
+    Reference: https://en.wikipedia.org/wiki/Moffat_distribution
 
     Parameters
     ----------
@@ -534,7 +543,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
     beta : float
         Power.
     d : float
-        Constant.
+        Constant baseline addition.
 
     Returns
     -------
@@ -546,9 +555,61 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
     return k*zb + d
 
 
-def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d: float) -> np.ndarray | float:
+def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> np.ndarray | float:
+    """
+    Callable sinc-squared function for fitting.
+    
+    Y = k*sinc((X-m)/(pi*w))^2 + d.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    k : float
+        Scaling coefficient.
+    m : float
+        Central peak location on X.
+    w : float
+        Width scaling of central peak.
+    d : float
+        Constant baseline addition.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = k*sinc((X-m)/(pi*w))^2 + d.
+        
+    """
     z = (X - m)/(pi*w)
-    return k*np.sinc(z) + d
+    return k*(np.sinc(z)**2) + d
+
+
+def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d: float) -> np.ndarray | float:
+    """
+    Callable parametrized exponentially modified Gaussian distribution (EMG) PDF.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    k : float
+        Scaling parameter.
+    m : float
+        Center of symmetry.
+    sigma : float
+        Gaussian width scaling.
+    tau : float
+        Exponentially decay.
+    d : float
+        Constant baseline addition.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma).
+    """
+    K = tau / sigma  # as used by SciPy
+    return k*exponnorm.pdf(X, K=K, loc=m, scale=sigma) + d
 
 
 # %% Define peak type and value
@@ -583,7 +644,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
             a, b, c = fitted_params; is_max = a < 0.0  # parabola opens downward
             if abs(a) >= tol:
                 x0 = -(0.5*b)/a  # defined from the 1st derivative
-                if x_min <= x0 <= x_max:
+                if x_min < x0 < x_max:
                     y0 = parabola_f(x0, a, b, c)
                 else:
                     is_definable = False  # peak / valley lays out of provided range
@@ -591,47 +652,45 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 is_definable = False  # it's not really a parabola, it's just a line
         elif f.__name__ == "gaussian_f":
             a, b, c = fitted_params; is_max = a > 0.0; x0 = b
-            if x_min <= x0 <= x_max and abs(a) >= tol:
+            if x_min < x0 < x_max and abs(a) >= tol:
                 y0 = gaussian_f(x0, a, b, c)
             else:
                 is_definable = False  # peak outside the range or a parameter wrongly fitted
         elif f.__name__ == "gaussian_leveled_f":
             a, b, c, d = fitted_params; is_max = a > 0.0; x0 = b
-            if x_min <= x0 <= x_max and abs(a) >= tol:
+            if x_min < x0 < x_max and abs(a) >= tol:
                 y0 = gaussian_leveled_f(x0, a, b, c, d)
             else:
                 is_definable = False  # peak outside the range or a parameter wrongly fitted
         elif f.__name__ == "lorentzian_f":
             a, b, k, d = fitted_params; is_max = a*k > 0.0; x0 = b
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = lorentzian_f(x0, a, b, k, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "line_f":
-            k, b = fitted_params; is_max = k > 0.0
-            is_definable = abs(k) >= tol  # constant line cannot define if there is peak (min / max) presented
-            x0 = 1.0; y0 = k + b  # if is_max - False, then it will be minimum
+            is_definable = False  # line cannot reveal a peak, it's just a baseline fitting function
         elif f.__name__ == "sech_f":
             k, a, b, d = fitted_params; is_max = k > 0.0; x0 = b
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = sech_f(x0, k, a, b, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "bump_f":
             b, k, m, d = fitted_params; is_max = k > 0.0; x0 = m
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = bump_f(x0, b, k, m, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "witch_agnesi_f":
             a, m, k, d = fitted_params; is_max = k > 0.0; x0 = m
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = witch_agnesi_f(x0, a, m, k, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "logistic_derivative_f":
             k, a, b, d = fitted_params; is_max = k > 0.0; x0 = b
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = logistic_derivative_f(x0, k, a, b, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
@@ -640,34 +699,59 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
             # Note - boundaries now should guarantee the presence of only single extremum inside them
             n = round((a*0.5 - b) / pi)  # define an approximation of extreme point definition f'(x) = 0 => a*x - b = pi*n
             x0 = (b + n*pi) / a  # extreme point
-            if x_min <= x0 <= x_max:  # extreme point inside the interval
+            if x_min < x0 < x_max:  # extreme point inside the interval
                 is_max = (n % 2 == 0); y0 = k if is_max else -k  # if n - odd, then cos(n*pi) = -1, if even => cos(n*pi) = 1
             else:
                 is_definable = False
         elif f.__name__ == "rayleigh_pdf_f":
             s, k, b, d = fitted_params; is_max = k > 0.0; x0 = b + s
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = rayleigh_pdf_f(x0, s, k, b, d)
             else:
                 is_definable = False  # peak / valley lays out of provided range or k == 0.0
         elif f.__name__ == "rayleigh_pdf_mirrored_f":
             s, k, b, d = fitted_params; is_max = k > 0.0; x0 = b - s
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = rayleigh_pdf_mirrored_f(x0, s, k, b, d)
             else:
                 is_definable = False  # peak / valley lays out of provided range or k == 0.0
         elif f.__name__ == "laplace_pdf_f":
             m, b, k, d = fitted_params; is_max = k > 0.0; x0 = m
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = laplace_pdf_f(x0, m, b, k, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "generalized_gaussian_f":
             w, st, m, k, d = fitted_params; is_max = k > 0.0; x0 = m
-            if x_min <= x0 <= x_max and abs(k) >= tol:
+            if x_min < x0 < x_max and abs(k) >= tol:
                 y0 = generalized_gaussian_f(x0, w, st, m, k, d)
             else:
                 is_definable = False  # peak outside the range or a parameter wrongly fitted
+        elif f.__name__ == "moffat_f":
+            k, m, w, beta, d = fitted_params; is_max = k > 0.0; x0 = m
+            if x_min < x0 < x_max and abs(k) >= tol:
+                y0 = moffat_f(x0, k, m, w, beta, d)
+            else:
+                is_definable = False  # peak outside the range or a parameter wrongly fitted
+        elif f.__name__ == "sinc_sq_f":
+            k, m, w, d = fitted_params; is_max = k > 0.0; x0 = m
+            if x_min < x0 < x_max and abs(k) >= tol:
+                y0 = sinc_sq_f(x0, k, m, w, d)
+            else:
+                is_definable = False  # peak outside the range or a parameter wrongly fitted
+        elif f.__name__ == "emg_f":
+            k, m, sigma, tau, d = fitted_params; is_max = k > 0.0
+            if abs(k) > tol:
+                if is_max:
+                    result = minimize_scalar(lambda x: -emg_f(x, *fitted_params), bounds=(0.0, 1.0), method="bounded")
+                else:
+                    result = minimize_scalar(lambda x: emg_f(x, *fitted_params), bounds=(0.0, 1.0), method="bounded")
+                if x_min < result.x < x_max:
+                    x0 = result.x; y0 = emg_f(x0, k, m, sigma, tau, d)
+                else:
+                    is_definable = False  # found extreme point outside or exactly on the X range bounds
+            else:
+                is_definable = False  # scaling coefficient is close to 0.0
         elif f.__name__ == "cubic_polynomial":
             a, b, c, d = fitted_params; discriminant_dx = b**2 - 3*a*c  # f'(x) = 0 for extreme, f'(x) = 3ax^2 + 2b*x + c
             if discriminant_dx > 0 and abs(a) >= tol:  # two roots - one max, one min

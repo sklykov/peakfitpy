@@ -12,6 +12,7 @@ from peakfitpy.utils.fitting_funcs import default_f_params, parabola_f
 
 plot_all_curves_with_defaults = True
 test_simple_case = False
+test_line = False
 
 
 # %% Only for development purposes
@@ -54,3 +55,8 @@ if __name__ == "__main__":
     y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
     y = PeakFit1D.add_awgn(y, noise_fraction=4e-2)  # add Gaussian noise
     pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    
+    # Edge case - 2 points fitting => line
+    if test_line:
+        x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
+        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
