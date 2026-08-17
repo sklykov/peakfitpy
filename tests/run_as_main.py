@@ -8,12 +8,14 @@ Run some tests for peakfit library directly in this script without pytest usage.
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import default_f_params, parabola_f
+from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
 
 plot_all_curves_with_defaults = True
 test_simple_case = False
 test_line = False
-test_smallest_points_valley = True
+test_smallest_points_valley = False
+test_4_points_peak = False
+test_recover = True
 
 
 # %% Only for development purposes
@@ -60,10 +62,21 @@ if __name__ == "__main__":
     # Edge case - 2 points fitting => line
     if test_line:
         x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
-        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True, plot_norm_best_fit=True)
         print("# of fitted funcitons:", len(pf.all_fits))
-        
-    # Test that all functions can be fitted to the generated bell-like structure
+         
+    # Test that only limited amount of functions can be fitted to 3 points only
     if test_smallest_points_valley:
         x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22])
         pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    
+    # 4 points fitting
+    if test_4_points_peak:
+        x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22])
+        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    
+    # get the function with default parameters and check if it's fitted even though some noise added
+    if test_recover:
+        # !!! 3 parameters Gaussian won't win because of Y min-max internal scaling, shifting it to 0.0 baseline
+        x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
+        y = gaussian_f(x, *params); pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)

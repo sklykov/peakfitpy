@@ -154,7 +154,7 @@ class PeakFit1D():
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
-            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range
+            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range  # min-max normalization
         else:
             self.y_norm = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
@@ -227,11 +227,11 @@ class PeakFit1D():
         if len(self.all_fits) > 0:
             # Select criteria for best fit selection: in any NaN calculated fallback to RMSE selection
             if nan_ic_calculated:
-                successful_fits = sorted(self.all_fits, key=lambda x: x[2]); self.best_fit_criteria = "RMSE"   # sort on RMSE
+                self.all_fits = sorted(self.all_fits, key=lambda x: x[2]); self.best_fit_criteria = "RMSE"   # sort on RMSE
             else:
                 # sort on IC - Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
-                successful_fits = sorted(self.all_fits, key=lambda x: x[3]); self.best_fit_criteria = "IC"
-            self.best_fit = successful_fits[0]  # best function along with parameters with minimal RMSE
+                self.all_fits = sorted(self.all_fits, key=lambda x: x[3]); self.best_fit_criteria = "IC"
+            self.best_fit = self.all_fits[0]  # best function along with parameters with minimal RMSE
             self.peak_params = get_peak(self.best_fit[0], self.best_fit[1])
             curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:

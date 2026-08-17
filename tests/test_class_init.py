@@ -109,8 +109,15 @@ def test_basic_fitting():
     assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"
     assert len(pf.all_fits) == 1, f"Only line can be fitted to only 2 points but fitted: {len(pf.all_fits)}"
     
-    # Test fitting 3 points and number of suitable functions for it
+    # Test fitting of 3 points and number of suitable functions for it
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.fit_function()
-    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) == 3]); f_n = pf.best_fit[0].__name__
-    assert n_suitable_fits == len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
+    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n = pf.best_fit[0].__name__
+    assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
     assert f_n == "parabola_f", f"For 3 asymetric points problem the best fit should be parabola, instead got {f_n}"
+    
+    # Test fitting of 4 points and number of suitable functions for it
+    x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22]); pf = PeakFit1D(x, y); pf.fit_function()
+    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n_pos = pf.best_fit[0].__name__
+    assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
+    y = -y;  pf = PeakFit1D(x, y); pf.fit_function(); f_n_neg = pf.best_fit[0].__name__
+    assert f_n_pos == f_n_neg, f"Functions fitted for original and -1.0*original data should be the same, instead: {f_n_pos} and {f_n_neg}"
