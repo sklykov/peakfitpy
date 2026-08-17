@@ -13,6 +13,7 @@ For running collected here tests, it's enough to run the command "pytest" from t
 import numpy as np
 
 from peakfitpy import PeakFit1D
+from peakfitpy.utils.fitting_funcs import default_f_params
 
 
 # %% Test functions
@@ -106,3 +107,10 @@ def test_basic_fitting():
     pf = PeakFit1D(x, y); curve_fitted, peak_defined = pf.fit_function(); f_n = pf.best_fit[0].__name__
     assert curve_fitted and not peak_defined, f"Curve should be fitted: {curve_fitted}, peak not defined or False: {peak_defined}"
     assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"
+    assert len(pf.all_fits) == 1, f"Only line can be fitted to only 2 points but fitted: {len(pf.all_fits)}"
+    
+    # Test fitting 3 points and number of suitable functions for it
+    x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.fit_function()
+    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) == 3]); f_n = pf.best_fit[0].__name__
+    assert n_suitable_fits == len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
+    assert f_n == "parabola_f", f"For 3 asymetric points problem the best fit should be parabola, instead got {f_n}"

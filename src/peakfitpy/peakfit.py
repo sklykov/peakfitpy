@@ -70,8 +70,9 @@ class PeakFit1D():
 
     """
 
-    x_vals : np.ndarray; y_vals : np.ndarray; x_norm_01 : np.ndarray; y_norm_01 : np.ndarray
-    x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real
+    x_vals : np.ndarray; y_vals : np.ndarray; x_norm : np.ndarray; y_norm : np.ndarray; best_fit_criteria: str
+    x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real; all_fits: list
+    polynomials: tuple[str]; best_fit: Callable | None; peak_params: tuple | None
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -147,15 +148,15 @@ class PeakFit1D():
         # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
-            self.x_norm_01 = (self.x_vals.copy().astype(np.float64) - self.x_min) / self.x_range  # normalization to the [0.0, 1.0] range
+            self.x_norm = (self.x_vals.copy().astype(np.float64) - self.x_min) / self.x_range  # normalization to the [0.0, 1.0] range
         else:
             raise ValueError("\nDifference of max and min values of X data results to a zero range")
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
-            self.y_norm_01 = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range
+            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range
         else:
-            self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
+            self.y_norm = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
@@ -163,7 +164,7 @@ class PeakFit1D():
         self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
-        self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__)
+        self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
 
     # %% Fitting
     def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
@@ -204,19 +205,20 @@ class PeakFit1D():
                 params = self.function_params[function.__name__]
                 params_limits = params_boundaries.get(function.__name__, None)  # get the boundaries for fitting parameters for both ranges
                 params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
-                if params_len <= self.x_norm_01.shape[0]:  # X values should be
+                if params_len <= self.x_norm.shape[0]:  # X values should be
                     try:
                         if params_limits is None:
                             if function.__name__ in self.polynomials:  # polynomials fitted also without any parameters restriction
-                                p = len(default_f_params[function.__name__]) - 1
-                                fitted_f_params = Polynomial.fit(self.x_norm_01, self.y_norm_01, deg=p).convert()
+                                p = len(default_f_params[function.__name__]) - 1  # degree of polynomial
+                                # below - convert from c, b, a coefficients order to a, b, c
+                                fitted_f_params = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef[::-1]
                             else:
-                                fitted_f_params = curve_fit(function, self.x_norm_01, self.y_norm_01, p0=params)[0]  # unrestrained fitting
+                                fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params)[0]  # unrestrained fitting
                         else:
                             # below - restrained on parameters fitting
-                            fitted_f_params = curve_fit(function, self.x_norm_01, self.y_norm_01, p0=params, bounds=params_limits)[0]
-                        y_f = function(self.x_norm_01, *fitted_f_params)  # calculate function values using fitted parameters
-                        rmse = np.sqrt(np.mean((self.y_norm_01 - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
+                            fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)[0]
+                        y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
+                        rmse = np.sqrt(np.mean((self.y_norm - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
                         if not nan_ic_calculated:
                             nan_ic_calculated = np.isnan(criteria)
                         self.all_fits.append((function, fitted_f_params, rmse, criteria))
@@ -245,7 +247,7 @@ class PeakFit1D():
                 x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
                 if plot_norm_best_fit:
                     plt.figure(f"Best fit result - Normalized Values {fig_id}")
-                    plt.plot(self.x_norm_01, self.y_norm_01, "ro", ms=7, label="Input Norm. Values")
+                    plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
                     func_n = full_f_names.get(self.best_fit[0].__name__)
                     plt.plot(x_plot_vals, self.best_fit[0](x_plot_vals, *self.best_fit[1]), lw=3.0, label=f"Fitted {func_n}")
                     if self.peak_params[0]:
@@ -500,7 +502,7 @@ class PeakFit1D():
 
         """
         if f.__name__ in default_f_params:
-            N = self.x_norm_01.shape[0]; K = len(default_f_params[f.__name__]) + 1  # number of function params + 1
+            N = self.x_norm.shape[0]; K = len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
                 rmse = 1e-6  # clamp RMSE to the smallest meaninful value used for also in fitting_funcs.py
             if N > K + 1:

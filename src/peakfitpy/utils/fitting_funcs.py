@@ -9,8 +9,8 @@ from collections.abc import Callable
 from math import e, pi
 
 import numpy as np
-from scipy.stats import exponnorm
 from scipy.optimize import minimize_scalar
+from scipy.stats import exponnorm
 
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
                     "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 8.0, 0.5, 0.0],
