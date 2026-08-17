@@ -516,6 +516,32 @@ def cubic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: flo
 
 
 def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d: float) -> np.ndarray | float:
+    """
+    Callable Moffat function for fitting.
+
+    Function Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s).
+    k : float
+        Scaling coefficient.
+    m : float
+        Symmetry center.
+    w : float
+        Width of distribution.
+    beta : float
+        Power.
+    d : float
+        Constant.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d.
+
+    """
     z = (X - m)/w; zb = (1.0 + z**2)**(-beta)
     return k*zb + d
 

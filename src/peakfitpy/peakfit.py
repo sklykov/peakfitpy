@@ -154,9 +154,9 @@ class PeakFit1D():
         else:
             self.y_norm_01 = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
-        self.functions = [gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
+        self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
                           logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
-                          rayleigh_pdf_mirrored_f, generalized_gaussian_f]
+                          rayleigh_pdf_mirrored_f, generalized_gaussian_f)
         self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
@@ -204,7 +204,7 @@ class PeakFit1D():
                 if params_len <= self.x_norm_01.shape[0]:  # X values should be
                     try:
                         if params_limits is None:
-                            if function.__name__ in self.polynomials:
+                            if function.__name__ in self.polynomials:  # polynomials fitted also without any parameters restriction
                                 p = len(default_f_params[function.__name__]) - 1
                                 fitted_f_params = Polynomial.fit(self.x_norm_01, self.y_norm_01, deg=p).convert()
                             else:
