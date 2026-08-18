@@ -10,12 +10,15 @@ import numpy as np
 from peakfitpy import PeakFit1D
 from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, parabola_f
 
-plot_all_curves_with_defaults = True
-test_simple_case = False
-test_line = False
-test_smallest_points_valley = False
+plot_all_curves_with_defaults = True  # for checking default parameters consistency
+test_simple_case = False  # common manual test - well-defined peak
+test_not_implemented_f = False  # Test not implemented function what should be still fitted
+test_line = False  # edge case - 2 points fitting
+test_noisy_parabola = False  # not transferred to the test_fitting, just checking the fit
+test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with a peak
 test_4_points_peak = False
-test_recover = True
+test_recover = False
+test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 
 
 # %% Only for development purposes
@@ -48,16 +51,18 @@ if __name__ == "__main__":
         pf2.fit_function(verbose=True, plot_best_fit=True)
 
     # Generate some complex examples and visualize the fitting
-    x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
-    y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
-    pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    if test_not_implemented_f:
+        x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
+        y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
+        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
 
     # Test some function + noise data => fitting
-    x = np.asarray([(0.57*i - 6.0) for i in range(22)])
-    a, b, c = default_f_params[parabola_f.__name__]
-    y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
-    y = PeakFit1D.add_awgn(y, noise_fraction=4e-2)  # add Gaussian noise
-    pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+    if test_noisy_parabola:
+        x = np.asarray([(0.57*i - 6.0) for i in range(22)])
+        a, b, c = default_f_params[parabola_f.__name__]
+        y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
+        y = PeakFit1D.add_awgn(y, noise_fraction=4e-2)  # add Gaussian noise
+        pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
     
     # Edge case - 2 points fitting => line
     if test_line:
@@ -75,8 +80,13 @@ if __name__ == "__main__":
         x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22])
         pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
     
-    # get the function with default parameters and check if it's fitted even though some noise added
+    # Check basic recovering from adding a noise - check peak properties
     if test_recover:
-        # !!! 3 parameters Gaussian won't win because of Y min-max internal scaling, shifting it to 0.0 baseline
         x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
-        y = gaussian_f(x, *params); pf = PeakFit1D(x, y); pf.fit_function(verbose=True, plot_best_fit=True)
+        y = 10.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1e-1)
+        pf = PeakFit1D(x, y); pf.fit_function(True, True); is_peak, xp, yp = pf.get_peak_values()
+    
+    if test_pure_noise:
+        x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
+        y = 10.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
+        pf = PeakFit1D(x, y); pf.fit_function(True, True); is_peak, xp, yp = pf.get_peak_values()

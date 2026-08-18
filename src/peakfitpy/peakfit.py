@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 from .utils.fitting_funcs import (
     bump_f,
-    cosine_f,
+    constant_f,
     cubic_polynomial,
     default_f_params,
     emg_f,
@@ -45,6 +45,7 @@ from .utils.fitting_funcs import (
     moffat_f,
     parabola_f,
     params_boundaries,
+    params_w_min_index,
     quartic_polynomial,
     rayleigh_pdf_f,
     rayleigh_pdf_mirrored_f,
@@ -148,21 +149,27 @@ class PeakFit1D():
         # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
-            self.x_norm = (self.x_vals.copy().astype(np.float64) - self.x_min) / self.x_range  # normalization to the [0.0, 1.0] range
+            self.x_norm = (self.x_vals.copy() - self.x_min).astype(np.float64) / self.x_range  # normalization to the [0.0, 1.0] range
+            self.x_sampling = np.median(np.diff(self.x_norm))  # for making estimation for fitting width bounds
+            if self.x_sampling < 1e-7:
+                __warn_message = ("\nEstimated median sampling interval of normalized X is below 1E-7. " + 
+                                  "For uniform sampling, this corresponds to more than 1E7 intervals. " + 
+                                  "Consider cropping or resampling the data.")
+                warnings.warn(__warn_message, stacklevel=2)
         else:
             raise ValueError("\nDifference of max and min values of X data results to a zero range")
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
-            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min) / self.y_range  # min-max normalization
+            self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
         else:
             self.y_norm = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
         # Available functions report
         self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
-                          logistic_derivative_f, cosine_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
-                          rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f)
+                          logistic_derivative_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
+                          rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
         self.function_names = [n.__name__ for n in self.functions]
-        self.function_params = {key: default_f_params[key] for key in self.function_names if key in default_f_params}
+        self.function_params = {key: default_f_params[key].copy() for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
         self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
 
@@ -202,20 +209,34 @@ class PeakFit1D():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
             # Fitting loop
             for function in self.functions:
-                params = self.function_params[function.__name__]
-                params_limits = params_boundaries.get(function.__name__, None)  # get the boundaries for fitting parameters for both ranges
+                f_name = function.__name__  # string form of the function name
+                params = self.function_params[f_name].copy()  # used default starting fitting parameters (centered peaks)
+                # get the boundaries for fitting parameters for both ranges
+                params_limits = deepcopy(params_boundaries.get(f_name, None))
                 params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
                 if params_len <= self.x_norm.shape[0]:  # X values should be
                     try:
                         if params_limits is None:
-                            if function.__name__ in self.polynomials:  # polynomials fitted also without any parameters restriction
-                                p = len(default_f_params[function.__name__]) - 1  # degree of polynomial
-                                # below - convert from c, b, a coefficients order to a, b, c
-                                fitted_f_params = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef[::-1]
+                            if f_name in self.polynomials:  # polynomials are fitted without any parameters restriction
+                                p = len(default_f_params[f_name]) - 1  # degree of polynomial
+                                coef = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef  # get coefficients 1*c + b*x^2 ...
+                                coef = np.pad(coef, (0, p + 1 - coef.size))  # pad operation is necessary, since coef can be trimmed
+                                fitted_f_params = coef[::-1]  # convert from c, b, a coefficients order to a, b, c
                             else:
                                 fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params)[0]  # unrestrained fitting
                         else:
-                            # below - restrained on parameters fitting
+                            # Sampling-based lower width estimate intended to suppress poorly sampled, needle-like fitted peaks.
+                            # It's based on FWHM * dx (dx = x_sampling)
+                            if f_name in params_w_min_index:
+                                index = params_w_min_index.get(f_name, None)
+                                if isinstance(index, int):
+                                    params_limits[0][index] = self.x_sampling*params_limits[1][index]  # Effectively, sampling * Max width
+                                    params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
+                                elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
+                                    i, j = index; params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
+                                    params[i] = self.x_sampling if params[i] < self.x_sampling else params[i]
+                                    params[j] = self.x_sampling if params[j] < self.x_sampling else params[j]
+                            # Below - restricted on parameters fitting using 'trf' method by default
                             fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)[0]
                         y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
                         rmse = np.sqrt(np.mean((self.y_norm - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
@@ -376,11 +397,15 @@ class PeakFit1D():
                 raise ValueError("\nX contains complex values")
             if x.min() < self.x_min or x.max() > self.x_max:
                 raise ValueError("\nMin or Max element from provided x array lays out of range of initially used x array")
+            if np.any(np.isnan(x)):
+                raise ValueError("\nX contains NaN values")
         else:
             if not np.isrealobj(x):
                 raise ValueError("\nX is complex")
             if x < self.x_min or x > self.x_max:
                 raise ValueError("\nProvided element lays out of range of the initially used x array")
+            if np.isnan(x):
+                raise ValueError("\nX is NaN")
         return (x - self.x_min) / self.x_range
 
     def denormalize_x(self, x: Real | nparray) -> Real | nparray:
@@ -427,11 +452,15 @@ class PeakFit1D():
                     raise ValueError("\nY contains complex values")
                 if y.min() < self.y_min or y.max() > self.y_max:
                     raise ValueError("\nMin or Max element from provided y array lays out of range of initially used y array")
+                if np.any(np.isnan(y)):
+                    raise ValueError("\nY contains NaN values")
             else:
                 if not np.isrealobj(y):
                     raise ValueError("\nY is complex")
                 if y < self.y_min or y > self.y_max:
                     raise ValueError("\nProvided element lays out of range of the initially used y array")
+                if np.isnan(y):
+                    raise ValueError("\nY is NaN")
             return (y - self.y_min) / self.y_range
         else:
             if isinstance(y, Real):
@@ -501,14 +530,16 @@ class PeakFit1D():
             Calculated float AICc or BIC if they can be defined, np.nan if they cannot be defined.
 
         """
+        generator = (len(params) for params in default_f_params.values())  # Generator expression
+        max_k = max(generator) + 1  # using Generator should evaluate the max iteratively
         if f.__name__ in default_f_params:
-            N = self.x_norm.shape[0]; K = len(default_f_params[f.__name__]) + 1  # number of function params + 1
+            n = self.x_norm.shape[0]; k = len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
                 rmse = 1e-6  # clamp RMSE to the smallest meaninful value used for also in fitting_funcs.py
-            if N > K + 1:
-                return N*np.log(rmse**2) + 2*K + (2*K*(K+1))/(N - K - 1)
+            if n > max_k + 1:  # universal criteria, assuming that max # of parameters in all implemented functions == 5 (N > 5+1)
+                return n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1)
             else:
-                return N*np.log(rmse**2) + K*np.log(N)
+                return n*np.log(rmse**2) + k*np.log(n)
         else:
             return np.nan
 
@@ -562,8 +593,12 @@ class PeakFit1D():
             y + additive Gaussian noise.
 
         """
+        if noise_fraction < 0.0:
+            noise_fraction = abs(noise_fraction)
+        if noise_fraction > 1.0 + 1e-6:
+            noise_fraction *= 1e-3
         rng = np.random.default_rng(); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
-        return y + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
+        return y.copy() + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)

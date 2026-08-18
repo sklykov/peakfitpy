@@ -5,66 +5,48 @@ Symbolic definitions of functions for fitting.
 @author: Sergei Klykov, @year: 2026, @licence: MIT \n
 
 """
-from collections.abc import Callable
-from math import e, pi
+import warnings
+from collections.abc import Callable, Sequence
+from math import acosh, e, log, pi, sqrt
 
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.stats import exponnorm
 
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
-                    "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 8.0, 0.5, 0.0],
+                    "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 0.125, 0.5, 0.0],
                     "bump_f": [0.5, e, 0.5, 0.0], "witch_agnesi_f": [0.1, 0.5, 2.5, 0.0],
-                    "logistic_derivative_f": [4.0, 10.0, 0.5, 0.0], "cosine_f": [1.0, pi-1e-4, 0.5*pi],
-                    "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0],
+                    "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], 
+                    "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0], 
                     "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
                     "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "generalized_gaussian_f": [0.2, 3.5, 0.5, 1.0, 0.0],
-                    "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0], 
+                    "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], "constant_f": [0.5],
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function",
                 "witch_agnesi_f": "Witch of Agnesi", "logistic_derivative_f": "Derivative of Logistic",
-                "cosine_f": "Cosine", "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
-                "laplace_pdf_f": "Laplace PDF", "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
+                "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF", "laplace_pdf_f": "Laplace PDF", 
+                "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
                 "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
-                "emg_f": "Exponentially Modified Gaussian PDF"}
+                "emg_f": "Exponentially Modified Gaussian PDF", "constant_f": "Constant Line"}
 
 # Symmetric around the max / min functions
 symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f", "witch_agnesi_f",
-                     "logistic_derivative_f", "cosine_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f")
+                     "logistic_derivative_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f", "constant_f")
 
 # Generic / assymetric functions
 generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial", "emg_f", "line_f")
 
 tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0] or [-1.0, 1.0]
 
-# Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: a - not restricted, b - to the padded X range, sigma > tol
-# rules: width of function commonly in [tol, +inf), k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
-# d - function baseline in padded Y range [-1.0, 2.0]
-d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0
-params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, np.inf]),
-                     "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "lorentzian_f": ([tol, x_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "sech_f": ([-np.inf, tol, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "bump_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "witch_agnesi_f": ([tol, x_min, -np.inf, d_min], [np.inf, x_max, np.inf, d_max]),
-                     "logistic_derivative_f": ([-np.inf, tol, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "cosine_f": ([tol, tol, -pi], [np.inf, pi-tol, pi-tol]),
-                     "rayleigh_pdf_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x_min, d_min], [np.inf, np.inf, x_max, d_max]),
-                     "laplace_pdf_f": ([x_min, tol, -np.inf, d_min], [x_max, np.inf, np.inf, d_max]),
-                     "generalized_gaussian_f": ([tol, 1.0, x_min, -np.inf, d_min], [np.inf, 10.0, x_max, np.inf, d_max]),
-                     "moffat_f": ([-np.inf, x_min, tol, 0.5, d_min], [np.inf, x_max, np.inf, 10.0, d_max]),
-                     "sinc_sq_f": ([-np.inf, 0.0, tol, d_min], [np.inf, 1.0, np.inf, d_max]),
-                     "emg_f": ([-np.inf, x_min, tol, tol, d_min], [np.inf, x_max, np.inf, np.inf, d_max]),
-                     }
-
 
 # %% Function def-s
 def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarray | float:
     """
     Callable parabola function for fitting.
+    
+    Equation: Y = a*X^2 + b*X + c
 
     Parameters
     ----------
@@ -86,18 +68,18 @@ def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarra
     return a*X*X + b*X + c
 
 
-def gaussian_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarray | float:
+def gaussian_f(X: np.ndarray | float, k: float, b: float, c: float) -> np.ndarray | float:
     """
     Parametric Gaussian function for fitting with zero asymptotic minimal Y value.
 
-    Equation: a*exp((-(X-b)^2)/(2*c^2)) \n
+    Equation: k*exp((-(X-b)^2)/(2*c^2)) \n
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
     ----------
     X : np.ndarray | float
         Function value(-s).
-    a : float
+    k : float
         See equation.
     b : float
         See equation. Mean value.
@@ -107,23 +89,23 @@ def gaussian_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarra
     Returns
     -------
     np.ndarray
-        Y = a*exp((-(X-b)^2)/2*c^2).
+        Y = k*exp((-(X-b)^2)/2*c^2).
 
     """
-    return a*np.exp(-(np.power(X-b, 2))/(2.0*(c**2)))
+    return k*np.exp(-(np.power(X-b, 2))/(2.0*(c**2)))
 
 
-def gaussian_leveled_f(X: np.ndarray | float, a: float, b: float, c: float, d: float) -> np.ndarray | float:
+def gaussian_leveled_f(X: np.ndarray | float, k: float, b: float, c: float, d: float) -> np.ndarray | float:
     """
     Parametric Gaussian function with fitting of non-zero level (asympotic minimal Y value).
 
-    Equation: a*exp((-(X-b)^2)/(2*c^2)) + d.
+    Equation: k*exp((-(X-b)^2)/(2*c^2)) + d.
 
     Parameters
     ----------
     X : np.ndarray | float
         Function value(-s).
-    a : float
+    k : float
         See equation.
     b : float
         See equation. Mean value.
@@ -135,10 +117,10 @@ def gaussian_leveled_f(X: np.ndarray | float, a: float, b: float, c: float, d: f
     Returns
     -------
     np.ndarray | float
-        Y = a*exp((-(X-b)^2)/2*c^2) + d.
+        Y = k*exp((-(X-b)^2)/2*c^2) + d.
 
     """
-    return a*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
+    return k*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
 
 
 def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float, k: float, d: float) -> np.ndarray | float:
@@ -169,7 +151,7 @@ def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float,
 
     """
     z = np.abs((X-m)/w)
-    return d + k*np.exp(-np.power(z, st))
+    return k*np.exp(-np.power(z, st)) + d
 
 
 def lorentzian_f(X: np.ndarray | float, a: float, b: float, k: float, d: float) -> np.ndarray | float:
@@ -225,11 +207,34 @@ def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
     return k*X + b
 
 
+def constant_f(X: np.ndarray | float, b: float) -> float:
+    """
+    Parametric Constant Line function for fallback fitting (preferable for noise with std = 1.0 if # of samples is enough).
+
+    Equation: Y = 0.0*X + b.
+
+    Parameters
+    ----------
+    X : np.ndarray | float
+        Function value(-s), placeholder.
+    b : float
+        y = f(0) value.
+
+    Returns
+    -------
+    np.ndarray | float
+        Y = 0.0*X + b.
+
+    """
+    return line_f(X, 0.0, b)
+
+
 def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.ndarray | float:
     """
     Parametric hyperbolic secant.
 
-    Equation: Y = k*exp(-|a*(X-b)|) / (exp(-2.0*|a*(X-b)|) + 1.0) + d \n
+    Equation: Y = k*exp(-|(X-b)/a|) / (exp(-2.0*|(X-b)/a|) + 1.0) + d \n
+    
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -237,9 +242,9 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
     X : np.ndarray | float
         Function value(-s).
     k : float
-        Max value (scaling), for normalized values default value = 2.0 (max at X = 0.0).
+        Scaling parameter.
     a : float
-        Scaling parameter for decay (FWHM).
+        Width parameter of distribution.
     b : float
         Offset on X from 0.0 of the peak value.
     d : float
@@ -248,10 +253,10 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
     Returns
     -------
     np.ndarray | float
-        Y = k*exp(-|a*(X-b)|) / (exp(-2.0*|a*(X-b)|) + 1.0) + d.
+        Y = k*exp(-|(X-b)/a|) / (exp(-2.0*|(X-b)/a|) + 1.0) + d.
 
     """
-    z = np.abs(a*(X-b)); exp_z = np.exp(-z)  # better for numerical stability, trick is to avoid computation of exp(z), z = huge
+    z = np.abs((X-b)/a); exp_z = np.exp(-z)  # better for numerical stability, trick is to avoid computation of exp(z), z = huge
     return ((k*exp_z)/(1.0 + exp_z**2)) + d
 
 
@@ -260,6 +265,7 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
     Parametric bump function.
 
     Equation: Y = k*exp(b^2 / ((X-m)^2 - b^2)) + d where abs(X-m) < b else d \n
+    
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -299,6 +305,7 @@ def witch_agnesi_f(X: np.ndarray | float, a: float, m: float, k: float, d: float
     Witch Of Agnesi function.
 
     Equation: Y = k*(8.0*a^3 / ((X-m)^2 + 2.0*a^2)) + d \n
+    
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -327,7 +334,8 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
     """
     Parametric derivative of logistic function.
 
-    Equation: Y = k*(exp(-|a*(X-b)|) / (1.0 + exp(-|a*(X-b)|))^2) + d \n
+    Equation: Y = k*(exp(-|(X-b)/a|) / (1.0 + exp(-|(X-b)/a|))^2) + d \n
+    
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -337,7 +345,7 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
     k : float
         Scaling coefficient, for normalized values default is k = 4.0 for unit height.
     a : float
-        Scaling of X values coefficients.
+        Width scaling parameter.
     b : float
         Shift of the peak from X=0.0
     d : float
@@ -346,37 +354,11 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
     Returns
     -------
     np.ndarray | float
-        Y = k*(exp(-|a*(X-b)|) / (1.0 + exp(-|a*(X-b)|))^2) + d.
+        Y = k*(exp(-|(X-b)/a|) / (1.0 + exp(-|(X-b)/a|))^2) + d.
 
     """
-    z = np.abs(a*(X-b)); exp_z = np.exp(-z)
+    z = np.abs((X-b)/a); exp_z = np.exp(-z)
     return k*(exp_z / np.power((1.0 + exp_z), 2)) + d
-
-
-def cosine_f(X: np.ndarray | float, k: float, a: float, b: float) -> np.ndarray | float:
-    """
-    Parametric cosine function.
-
-    Equation: Y = k*cos(a*X - b). Better to use for fitting on [-1.0, 1.0] interval.
-
-    Parameters
-    ----------
-    X : np.ndarray | float
-        Function value(-s).
-    k : float
-        Scaling (amplitude) coefficient.
-    a : float
-        Phase scaling coefficient.
-    b : float
-        Phase shift.
-
-    Returns
-    -------
-    np.ndarray | float
-        Y = k*cos(a*X - b).
-
-    """
-    return k*np.cos(a*X-b)
 
 
 def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: float) -> np.ndarray | float:
@@ -651,15 +633,15 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
             else:
                 is_definable = False  # it's not really a parabola, it's just a line
         elif f.__name__ == "gaussian_f":
-            a, b, c = fitted_params; is_max = a > 0.0; x0 = b
-            if x_min < x0 < x_max and abs(a) >= tol:
-                y0 = gaussian_f(x0, a, b, c)
+            k, b, c = fitted_params; is_max = k > 0.0; x0 = b
+            if x_min < x0 < x_max and abs(k) >= tol:
+                y0 = gaussian_f(x0, k, b, c)
             else:
                 is_definable = False  # peak outside the range or a parameter wrongly fitted
         elif f.__name__ == "gaussian_leveled_f":
-            a, b, c, d = fitted_params; is_max = a > 0.0; x0 = b
-            if x_min < x0 < x_max and abs(a) >= tol:
-                y0 = gaussian_leveled_f(x0, a, b, c, d)
+            k, b, c, d = fitted_params; is_max = k > 0.0; x0 = b
+            if x_min < x0 < x_max and abs(k) >= tol:
+                y0 = gaussian_leveled_f(x0, k, b, c, d)
             else:
                 is_definable = False  # peak outside the range or a parameter wrongly fitted
         elif f.__name__ == "lorentzian_f":
@@ -668,7 +650,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 y0 = lorentzian_f(x0, a, b, k, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
-        elif f.__name__ == "line_f":
+        elif f.__name__ == "line_f" or f.__name__ == "constant_f":
             is_definable = False  # line cannot reveal a peak, it's just a baseline fitting function
         elif f.__name__ == "sech_f":
             k, a, b, d = fitted_params; is_max = k > 0.0; x0 = b
@@ -694,15 +676,6 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 y0 = logistic_derivative_f(x0, k, a, b, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
-        elif f.__name__ == "cosine_f":
-            k, a, b = fitted_params
-            # Note - boundaries now should guarantee the presence of only single extremum inside them
-            n = round((a*0.5 - b) / pi)  # define an approximation of extreme point definition f'(x) = 0 => a*x - b = pi*n
-            x0 = (b + n*pi) / a  # extreme point
-            if x_min < x0 < x_max:  # extreme point inside the interval
-                is_max = (n % 2 == 0); y0 = k if is_max else -k  # if n - odd, then cos(n*pi) = -1, if even => cos(n*pi) = 1
-            else:
-                is_definable = False
         elif f.__name__ == "rayleigh_pdf_f":
             s, k, b, d = fitted_params; is_max = k > 0.0; x0 = b + s
             if x_min < x0 < x_max and abs(k) >= tol:
@@ -742,11 +715,12 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
         elif f.__name__ == "emg_f":
             k, m, sigma, tau, d = fitted_params; is_max = k > 0.0
             if abs(k) > tol:
+                offset = 10.0*tol  # it is used for prevent to report as extreme point just value at the bound using standard tol
                 if is_max:
                     result = minimize_scalar(lambda x: -emg_f(x, *fitted_params), bounds=(0.0, 1.0), method="bounded")
                 else:
                     result = minimize_scalar(lambda x: emg_f(x, *fitted_params), bounds=(0.0, 1.0), method="bounded")
-                if x_min < result.x < x_max:
+                if x_min + offset < result.x < x_max - offset:  # default restricted boundaries
                     x0 = result.x; y0 = emg_f(x0, k, m, sigma, tau, d)
                 else:
                     is_definable = False  # found extreme point outside or exactly on the X range bounds
@@ -831,3 +805,106 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 is_definable = False
 
     return is_definable, is_max, x0, y0
+
+
+# %% Analytical FWHM
+def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
+    """
+    Calculate analytically the FWHM based on width parameter 'w_param' or full set of fitted / used values for a specific function.
+
+    Parameters
+    ----------
+    f_name : str
+        Function name, can be get as f.__name__ where f - function from an implemented above functions. \n
+        Note that not all functions from this module has the analytically calculated FWHM, e.g. polynomials. 
+        List of implemented functions: gaussian_f, gaussian_leveled_f, lorentzian_f, bump_f, witch_agnesi_f, sech_f, \n
+        logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f, laplace_pdf_f, generalized_gaussian_f, moffat_f, sinc_sq_f. \n
+        Note that width parameter naming depends on the used in this module parameter list and naming, \n
+        e.g. for 'gaussian_f' - parameter 'c'.
+    w_param : float
+        Width parameter.
+    f_params : Sequence, optional
+        Required Sequence of all parameters for functions 'generalized_gaussian_f' and 'moffat_f'. The default is ().
+
+    Returns
+    -------
+    float
+        Estimated Full Width at Half-Maximum (FWHM).
+        
+    """
+    if f_name in default_f_params:
+        if f_name == "gaussian_f" or f_name == "gaussian_leveled_f":
+            return 2.0*sqrt(2.0*log(2.0))*w_param
+        elif f_name == "lorentzian_f":
+            return 2.0*w_param
+        elif f_name == "bump_f":
+            return 2.0*(sqrt(log(2.0)/(1.0 + log(2.0))))*w_param
+        elif f_name == "witch_agnesi_f":
+            return 2.0*sqrt(2.0)*w_param
+        elif f_name == "sech_f":
+            return 2.0*acosh(2.0)*w_param
+        elif f_name == "logistic_derivative_f":
+            return 4.0*log(1.0 + sqrt(2))*w_param
+        elif f_name == "rayleigh_pdf_f" or f_name == "rayleigh_pdf_mirrored_f":
+            return 1.60252*w_param
+        elif f_name == "laplace_pdf_f":
+            return 2.0*log(2.0)*w_param
+        elif f_name == "generalized_gaussian_f":
+            w, st, m, k, d = f_params
+            return 2.0*w*log(2.0)**(1.0/st)
+        elif f_name == "moffat_f":
+            k, m, w, beta, d = f_params
+            return 2.0*w*sqrt(2.0**(1.0/beta) - 1.0)
+        elif f_name == "sinc_sq_f":
+            return 2.78311*w_param
+        else:
+            __warn_mess = f"\nProvided function '{f_name}' hasn't been found between implemented FWHM functions, check the call"
+            warnings.warn(__warn_mess, stacklevel=2)
+            return w_param
+    else:
+        __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
+        warnings.warn(__warn_mess, stacklevel=2)
+        return w_param
+
+
+# %% Define fitting parameter bounds
+# Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: k - not restricted, b - to the padded X range, sigma > tol,
+# rules: width of function commonly in [tol, FWHM=2.0), k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
+# d - function baseline in padded Y range [-1.0, 2.0]
+fwhm_max = 2.005  # allow only FWHM ~= 2.0*(x_max - x_min) as the universal max width characterization parameter for parameters calculation
+d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0  # universally defined from a X range [0.0, 1.0]
+
+w_max_gaussian = fwhm_max/get_fwhm("gaussian_f", 1.0)  # Retrieve FWHM with width = 1.0
+w_max_lorentzian = fwhm_max/get_fwhm("lorentzian_f", 1.0)
+w_max_sech = fwhm_max/get_fwhm("sech_f", 1.0)
+w_max_bump = 1.0  # as recommended, prefer support width, where bump function still defined: abs(X-m) < b
+w_max_witch = fwhm_max/get_fwhm("witch_agnesi_f", 1.0)
+w_max_logistic = fwhm_max/get_fwhm("logistic_derivative_f", 1.0)
+w_max_rayleigh = fwhm_max/get_fwhm("rayleigh_pdf_f", 1.0)
+w_max_laplace = fwhm_max/get_fwhm("laplace_pdf_f", 1.0)
+w_max_gaussian_gen = fwhm_max/get_fwhm("generalized_gaussian_f", 1.0, [1.0, 10.0, 0.5, 1.0, 0.0])
+w_max_moffat = fwhm_max/get_fwhm("moffat_f", 1.0, [1.0, 0.5, 1.0, 0.5, 0.0])
+w_sinc_sq = fwhm_max/get_fwhm("sinc_sq_f", 1.0)
+w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts, 
+
+params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max_gaussian]),
+                     "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, w_max_gaussian, d_max]),
+                     "lorentzian_f": ([tol, x_min, -np.inf, d_min], [w_max_lorentzian, x_max, np.inf, d_max]),
+                     "sech_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_sech, x_max, d_max]),
+                     "bump_f": ([tol, -np.inf, x_min, d_min], [w_max_bump, np.inf, x_max, d_max]),
+                     "witch_agnesi_f": ([tol, x_min, -np.inf, d_min], [w_max_witch, x_max, np.inf, d_max]),
+                     "logistic_derivative_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_logistic, x_max, d_max]),
+                     "rayleigh_pdf_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
+                     "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
+                     "laplace_pdf_f": ([x_min, tol, -np.inf, d_min], [x_max, w_max_laplace, np.inf, d_max]),
+                     "generalized_gaussian_f": ([tol, 1.0, x_min, -np.inf, d_min], [w_max_gaussian_gen, 10.0, x_max, np.inf, d_max]),
+                     "moffat_f": ([-np.inf, x_min, tol, 0.5, d_min], [np.inf, x_max, w_max_moffat, 10.0, d_max]),
+                     "sinc_sq_f": ([-np.inf, 0.0, tol, d_min], [np.inf, 1.0, w_sinc_sq, d_max]),
+                     "emg_f": ([-np.inf, x_min, tol, tol, d_min], [np.inf, x_max, w_emg_g, w_emg_tau, d_max]),
+                     }
+
+# Define the index of width min parameter to correct for using the actual sampling estimation
+params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0, "witch_agnesi_f": 0,
+                      "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1, 
+                      "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3), 
+                      }
