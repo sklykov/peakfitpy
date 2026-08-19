@@ -15,8 +15,7 @@ from scipy.stats import exponnorm
 
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
                     "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 0.125, 0.5, 0.0],
-                    "bump_f": [0.5, e, 0.5, 0.0], "witch_agnesi_f": [0.1, 0.5, 2.5, 0.0],
-                    "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], 
+                    "bump_f": [0.5, e, 0.5, 0.0], "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], 
                     "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0], 
                     "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
                     "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "generalized_gaussian_f": [0.2, 3.5, 0.5, 1.0, 0.0],
@@ -25,14 +24,14 @@ default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function",
-                "witch_agnesi_f": "Witch of Agnesi", "logistic_derivative_f": "Derivative of Logistic",
-                "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF", "laplace_pdf_f": "Laplace PDF", 
+                "logistic_derivative_f": "Derivative of Logistic", "laplace_pdf_f": "Laplace PDF",
+                "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",  
                 "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
                 "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
                 "emg_f": "Exponentially Modified Gaussian PDF", "constant_f": "Constant Line"}
 
 # Symmetric around the max / min functions
-symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f", "witch_agnesi_f",
+symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f",
                      "logistic_derivative_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f", "constant_f")
 
 # Generic / assymetric functions
@@ -298,36 +297,6 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
         mask = np.abs(X-m) < b; X_valid = (X-m)[mask]  # only where X satisfy condition
         Y[mask] = k*np.exp(b**2 / (X_valid**2 - b**2)) + d  # evaluate only on the valid X values
         return Y
-
-
-def witch_agnesi_f(X: np.ndarray | float, a: float, m: float, k: float, d: float) -> np.ndarray | float:
-    """
-    Witch Of Agnesi function.
-
-    Equation: Y = k*(8.0*a^3 / ((X-m)^2 + 2.0*a^2)) + d \n
-    
-    Source: https://en.wikipedia.org/wiki/Bell-shaped_function
-
-    Parameters
-    ----------
-    X : np.ndarray | float
-        Function values.
-    a : float
-        Equation parameter, for normalized values default is a = 1/4.
-    m : float
-        Central shift from 0.0 of peak value in X.
-    k : float
-        Scaling coefficient.
-    d : float
-        Constant level.
-
-    Returns
-    -------
-    np.ndarray | float
-        Y = k*(8.0*a^3 / ((X-m)^2 + 2.0*a^2)) + d.
-
-    """
-    return k*((8.0*a**3)/((X-m)**2 + 2.0*a**2)) + d
 
 
 def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.ndarray | float:
@@ -664,12 +633,6 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 y0 = bump_f(x0, b, k, m, d)
             else:
                 is_definable = False  # peak outside the range or k == 0.0
-        elif f.__name__ == "witch_agnesi_f":
-            a, m, k, d = fitted_params; is_max = k > 0.0; x0 = m
-            if x_min < x0 < x_max and abs(k) >= tol:
-                y0 = witch_agnesi_f(x0, a, m, k, d)
-            else:
-                is_definable = False  # peak outside the range or k == 0.0
         elif f.__name__ == "logistic_derivative_f":
             k, a, b, d = fitted_params; is_max = k > 0.0; x0 = b
             if x_min < x0 < x_max and abs(k) >= tol:
@@ -728,8 +691,8 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                 is_definable = False  # scaling coefficient is close to 0.0
         elif f.__name__ == "cubic_polynomial":
             a, b, c, d = fitted_params; discriminant_dx = b**2 - 3*a*c  # f'(x) = 0 for extreme, f'(x) = 3ax^2 + 2b*x + c
-            if discriminant_dx > 0 and abs(a) >= tol:  # two roots - one max, one min
-                x01 = (-b + np.sqrt(discriminant_dx))/(3.0*a); x02 = (-b - np.sqrt(discriminant_dx))/(3.0*a)
+            if abs(a) >= tol and discriminant_dx > 0:  # two roots - one max, one min
+                x01 = (-b + sqrt(discriminant_dx))/(3.0*a); x02 = (-b - sqrt(discriminant_dx))/(3.0*a)
                 x01_in_range = 0.0 < x01 < x_max; x02_in_range = 0.0 < x02 < x_max
                 ya = cubic_polynomial(0.0, a, b, c, d); yb = cubic_polynomial(x_max, a, b, c, d)
                 # define which peak / valley is global or only local and test for both cases
@@ -746,63 +709,76 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                     is_max = is_max_02; x0 = x02; y0 = y02
                 else:
                     is_definable = False
+            elif abs(a) < tol:  # degenerative case - effectively, this is parabola 
+                is_definable, is_max, x0, y0 = get_peak(parabola_f, (b, c, d))  # call of the method with the parabola function
             else:
                 is_definable = False  # either there is no max / min, or it's stationary inflection point (f(x) = x^3 it is x = 0)
         elif f.__name__ == "quartic_polynomial":
             a, b, c, d, e = fitted_params; n_digits = 9
             root_tol = 10.0**(-n_digits+3)  # looser tolerance accounting for numerical root-solving uncertainty
-            roots = np.roots([4*a, 3*b, 2*c, d])  # for f'(x) = 4*a*x^3 + 3*b*x^2 + 2*c*x + d
-            # below - keep only roots with small imaginary part, the returned roots are complex, and real part withing selected x range
-            real_roots = sorted([r.real for r in roots if abs(r.imag) < root_tol and x_min < r.real < x_max])
-            # keep only unique, distinct roots
-            unique_roots = []  # empty container for collecting
-            for x_r in real_roots:
-                if not unique_roots or abs(x_r - unique_roots[-1]) > root_tol:  # add 1st element or compare with the previous one (max)
-                    unique_roots.append(x_r)
-            if len(unique_roots) > 0:  # 1, 2 or 3 real, distinguishable roots
-                extreme_points = []  # define peak / valley candidates, ignore stationary inflection and flat max / min solutions
-                for i, x_r in enumerate(unique_roots):
-                    f2 = 12.0*a*x_r**2 + 6.0*b*x_r + 2.0*c  # f''(x_r)
-                    if f2 < -tol:  # f''(x_r) < generic tol effectively
-                        extreme_points.append({i: "peak"})
-                    elif f2 > tol:
-                        extreme_points.append({i: "valley"})
-                # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
-                if len(extreme_points) == 0 or len(extreme_points) == 3:
-                    is_definable = False
-                elif len(extreme_points) == 1:
-                    y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
-                    y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
-                    i_xr = next(iter(extreme_points[0]))  # recorded index of found extreme point
-                    xr = unique_roots[i_xr]; y_xr = round(quartic_polynomial(xr, a, b, c, d, e), n_digits)
-                    if extreme_points[0][i_xr] == "peak" and y_xr > y_a and y_xr > y_b:
-                        is_max = True; x0 = xr; y0 = y_xr
-                    elif extreme_points[0][i_xr] == "valley" and y_xr < y_a and y_xr < y_b:
-                        is_max = False; x0 = xr; y0 = y_xr
-                    else:
-                        is_definable = False  # local peak / valley only
-                elif len(extreme_points) == 2:  # peak and valley candidates, one of them is only local
-                    y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
-                    y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
-                    i_xr1 = next(iter(extreme_points[0])); i_xr2 = next(iter(extreme_points[1]))
-                    xr1 = unique_roots[i_xr1]; y_xr1 = round(quartic_polynomial(xr1, a, b, c, d, e), n_digits)
-                    xr2 = unique_roots[i_xr2]; y_xr2 = round(quartic_polynomial(xr2, a, b, c, d, e), n_digits)
-                    is_global_xr1 = ((extreme_points[0][i_xr1] == "peak" and y_xr1 > y_a and y_xr1 > y_b)
-                                    or (extreme_points[0][i_xr1] == "valley" and y_xr1 < y_a and y_xr1 < y_b))
-                    is_global_xr2 = ((extreme_points[1][i_xr2] == "peak" and y_xr2 > y_a and y_xr2 > y_b)
-                                    or (extreme_points[1][i_xr2] == "valley" and y_xr2 < y_a and y_xr2 < y_b))
-                    if is_global_xr1 and is_global_xr2:
+            if abs(a) >= tol:
+                roots = np.roots([4*a, 3*b, 2*c, d])  # for f'(x) = 4*a*x^3 + 3*b*x^2 + 2*c*x + d
+                # below - keep only roots with small imaginary part, the returned roots are complex and real part withing selected x range
+                real_roots = sorted([r.real for r in roots if abs(r.imag) < root_tol and x_min < r.real < x_max])
+                # keep only unique, distinct roots
+                unique_roots = []  # empty container for collecting
+                for x_r in real_roots:
+                    if not unique_roots or abs(x_r - unique_roots[-1]) > root_tol:  # add 1st element or compare with the previous one (max)
+                        unique_roots.append(x_r)
+                if len(unique_roots) > 0:  # 1, 2 or 3 real, distinguishable roots
+                    extreme_points = []  # define peak / valley candidates, ignore stationary inflection and flat max / min solutions
+                    for i, x_r in enumerate(unique_roots):
+                        f2 = 12.0*a*(x_r**2) + 6.0*b*x_r + 2.0*c  # f''(x_r)
+                        if f2 < -tol:  # f''(x_r) < generic tol effectively
+                            extreme_points.append({i: "peak"})
+                        elif f2 > tol:
+                            extreme_points.append({i: "valley"})
+                        else:
+                            x_r_left = x_r - 11.0*tol; x_r_right = x_r + 11.0*tol
+                            f1_left = 4.0*a*((x_r_left)**3) + 3.0*b*(x_r_left**2) + 2.0*c*x_r_left + d
+                            f1_right = 4.0*a*((x_r_right)**3) + 3.0*b*(x_r_right**2) + 2.0*c*x_r_right + d
+                            if f1_left*f1_right < 0.0:  # the f'(x) change the sign from left to right
+                                extreme_points.append({i: "single extreme"})  # special point for polynomial like (x-0.5)^4
+                    # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
+                    if len(extreme_points) == 0 or len(extreme_points) == 3:
                         is_definable = False
-                    elif is_global_xr1 and not is_global_xr2:
-                        is_max = extreme_points[0][i_xr1] == "peak"; x0 = xr1; y0 = y_xr1
-                    elif not is_global_xr1 and is_global_xr2:
-                        is_max = extreme_points[1][i_xr2] == "peak"; x0 = xr2; y0 = y_xr2
+                    elif len(extreme_points) == 1:
+                        y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
+                        y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
+                        i_xr = next(iter(extreme_points[0]))  # recorded index of found extreme point as the single key from dictionary
+                        xr = unique_roots[i_xr]; y_xr = round(quartic_polynomial(xr, a, b, c, d, e), n_digits)
+                        if extreme_points[0][i_xr] == "peak" and y_xr > y_a and y_xr > y_b:
+                            is_max = True; x0 = xr; y0 = y_xr
+                        elif extreme_points[0][i_xr] == "valley" and y_xr < y_a and y_xr < y_b:
+                            is_max = False; x0 = xr; y0 = y_xr
+                        elif extreme_points[0][i_xr] == "single extreme":
+                            x0 = xr; y0 = y_xr; is_max = y_xr > y_a and y_xr > y_b
+                        else:
+                            is_definable = False  # local peak / valley only
+                    elif len(extreme_points) == 2:  # peak and valley candidates, one of them is only local
+                        y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
+                        y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
+                        i_xr1 = next(iter(extreme_points[0])); i_xr2 = next(iter(extreme_points[1]))
+                        xr1 = unique_roots[i_xr1]; y_xr1 = round(quartic_polynomial(xr1, a, b, c, d, e), n_digits)
+                        xr2 = unique_roots[i_xr2]; y_xr2 = round(quartic_polynomial(xr2, a, b, c, d, e), n_digits)
+                        is_global_xr1 = ((extreme_points[0][i_xr1] == "peak" and y_xr1 > y_a and y_xr1 > y_b)
+                                        or (extreme_points[0][i_xr1] == "valley" and y_xr1 < y_a and y_xr1 < y_b))
+                        is_global_xr2 = ((extreme_points[1][i_xr2] == "peak" and y_xr2 > y_a and y_xr2 > y_b)
+                                        or (extreme_points[1][i_xr2] == "valley" and y_xr2 < y_a and y_xr2 < y_b))
+                        if is_global_xr1 and is_global_xr2:
+                            is_definable = False
+                        elif is_global_xr1 and not is_global_xr2:
+                            is_max = extreme_points[0][i_xr1] == "peak"; x0 = xr1; y0 = y_xr1
+                        elif not is_global_xr1 and is_global_xr2:
+                            is_max = extreme_points[1][i_xr2] == "peak"; x0 = xr2; y0 = y_xr2
+                        else:
+                            is_definable = False
                     else:
                         is_definable = False
-                else:
-                    is_definable = False
-            else:
-                is_definable = False
+            else:  # degenerative case - effectively, this is qubic polynomial 
+                is_definable, is_max, x0, y0 = get_peak(cubic_polynomial, (b, c, d, e))  # call of the method with the cubic function
+        else:
+            is_definable = False
 
     return is_definable, is_max, x0, y0
 
@@ -839,8 +815,6 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
             return 2.0*w_param
         elif f_name == "bump_f":
             return 2.0*(sqrt(log(2.0)/(1.0 + log(2.0))))*w_param
-        elif f_name == "witch_agnesi_f":
-            return 2.0*sqrt(2.0)*w_param
         elif f_name == "sech_f":
             return 2.0*acosh(2.0)*w_param
         elif f_name == "logistic_derivative_f":
@@ -878,7 +852,6 @@ w_max_gaussian = fwhm_max/get_fwhm("gaussian_f", 1.0)  # Retrieve FWHM with widt
 w_max_lorentzian = fwhm_max/get_fwhm("lorentzian_f", 1.0)
 w_max_sech = fwhm_max/get_fwhm("sech_f", 1.0)
 w_max_bump = 1.0  # as recommended, prefer support width, where bump function still defined: abs(X-m) < b
-w_max_witch = fwhm_max/get_fwhm("witch_agnesi_f", 1.0)
 w_max_logistic = fwhm_max/get_fwhm("logistic_derivative_f", 1.0)
 w_max_rayleigh = fwhm_max/get_fwhm("rayleigh_pdf_f", 1.0)
 w_max_laplace = fwhm_max/get_fwhm("laplace_pdf_f", 1.0)
@@ -892,7 +865,6 @@ params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max
                      "lorentzian_f": ([tol, x_min, -np.inf, d_min], [w_max_lorentzian, x_max, np.inf, d_max]),
                      "sech_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_sech, x_max, d_max]),
                      "bump_f": ([tol, -np.inf, x_min, d_min], [w_max_bump, np.inf, x_max, d_max]),
-                     "witch_agnesi_f": ([tol, x_min, -np.inf, d_min], [w_max_witch, x_max, np.inf, d_max]),
                      "logistic_derivative_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_logistic, x_max, d_max]),
                      "rayleigh_pdf_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
                      "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
@@ -904,7 +876,7 @@ params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max
                      }
 
 # Define the index of width min parameter to correct for using the actual sampling estimation
-params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0, "witch_agnesi_f": 0,
+params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0, 
                       "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1, 
                       "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3), 
                       }

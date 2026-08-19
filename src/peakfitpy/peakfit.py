@@ -53,7 +53,6 @@ from .utils.fitting_funcs import (
     sinc_sq_f,
     symmetric_f_names,
     tol,
-    witch_agnesi_f,
 )
 
 # %% Module parameters
@@ -73,7 +72,7 @@ class PeakFit1D():
 
     x_vals : np.ndarray; y_vals : np.ndarray; x_norm : np.ndarray; y_norm : np.ndarray; best_fit_criteria: str
     x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real; all_fits: list
-    polynomials: tuple[str]; best_fit: Callable | None; peak_params: tuple | None
+    polynomials: tuple[str]; best_fit: Callable | None; peak_params: tuple | None; best_fit_criterias: tuple
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -145,36 +144,47 @@ class PeakFit1D():
                     ids = np.argsort(self.x_vals, kind='stable')  # return back indices for sorting of initial array
                     self.x_vals = self.x_vals[ids]; self.y_vals = self.y_vals[ids]  # use sorted X indices for sorting both
             else:
-                raise ValueError("\nProvided X data doesn't contain all unique values")
+                raise ValueError("\nProvided X data doesn't contain all unique values (i.e. some or all values are identical)")
         # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
             self.x_norm = (self.x_vals.copy() - self.x_min).astype(np.float64) / self.x_range  # normalization to the [0.0, 1.0] range
             self.x_sampling = np.median(np.diff(self.x_norm))  # for making estimation for fitting width bounds
-            if self.x_sampling < 1e-7:
-                __warn_message = ("\nEstimated median sampling interval of normalized X is below 1E-7. " + 
-                                  "For uniform sampling, this corresponds to more than 1E7 intervals. " + 
-                                  "Consider cropping or resampling the data.")
-                warnings.warn(__warn_message, stacklevel=2)
-        else:
-            raise ValueError("\nDifference of max and min values of X data results to a zero range")
+            if 1e-7 <= self.x_sampling < 1e-6:
+                if self.x_norm.shape[0] > 1E6:
+                    __warn_mess = ("\nEstimated median sampling interval of normalized X is below 1E-6 " + 
+                                   "and number of data points is > 1E6. Consider cropping of the data.")
+                else:
+                    __warn_mess = ("\nEstimated median sampling interval of normalized X is below 1E-6 that is too small value. " + 
+                                   "Consider resampling of the data.")
+                warnings.warn(__warn_mess, stacklevel=2)
+            elif self.x_sampling < 1e-7:
+                raise ValueError("\nEstimated median sampling interval of normalized X is too small for fitting convergance")
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
             self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
         else:
-            self.y_norm = np.zeros_like(self.y_vals)  # substitue with zeros, assuming that if min = max, only constant values provided
+            raise ValueError("\nProvided values are identical (constant)")
         # Available functions report
-        self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f, witch_agnesi_f,
+        self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f,
                           logistic_derivative_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
                           rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
         self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key].copy() for key in self.function_names if key in default_f_params}
         self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criteria = ""
         self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
+        # Define available best fit criterias - exclude or include "IC" based on sample size
+        self.best_fit_criterias = ("RMSE", "MAE")
+        generator = (len(params) for params in default_f_params.values())  # Generator expression
+        max_k = max(generator) + 1  # using Generator should evaluate the max iteratively
+        if len(self.x_norm) > max_k + 1:
+            self.best_fit_criterias = ("RMSE", "MAE", "IC")
+            
 
     # %% Fitting
-    def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
+    def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
+                      selection_criteria: str = "RMSE") -> tuple[bool, bool]:
         """
         Fit in a loop functions for X, Y normalized data.
 
@@ -193,6 +203,10 @@ class PeakFit1D():
             Flag for plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
             It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
             The default is False.
+        selection_criteria : str, optional
+            Criteria for selection of the best fit. Available: "RMSE", "MAE", "IC" (mix of RMSE + minimal function flexibility). \n
+            "IC" stands for "Information Criteria". The default is "RMSE" (universally computable value).\n
+            Note that "IC" will be available only for datasets with size > max(number of fitted parameters) + 1 (size >= 8 as for now).
 
         Returns
         -------
@@ -204,7 +218,7 @@ class PeakFit1D():
         """
         curve_fitted = False; peak_defined = False  # default return values
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
-        previous_criteria = self.best_fit_criteria; self.best_fit_criteria = ""; nan_ic_calculated = False
+        previous_criteria = self.best_fit_criteria; self.best_fit_criteria = ""
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
             # Fitting loop
@@ -239,28 +253,41 @@ class PeakFit1D():
                             # Below - restricted on parameters fitting using 'trf' method by default
                             fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)[0]
                         y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
-                        rmse = np.sqrt(np.mean((self.y_norm - y_f)**2)); criteria = self.get_best_fit_criteria(function, rmse)
-                        if not nan_ic_calculated:
-                            nan_ic_calculated = np.isnan(criteria)
-                        self.all_fits.append((function, fitted_f_params, rmse, criteria))
+                        diff_y = self.y_norm - y_f; rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
+                        if len(self.best_fit_criterias) == 3:
+                            criteria = self.get_information_criteria(function, rmse)  # cannot return nan since all functions are implemented
+                            self.all_fits.append((function, fitted_f_params, rmse, mae, criteria))
+                        else:
+                            self.all_fits.append((function, fitted_f_params, rmse, mae))
                     except RuntimeError:
                         pass  # no succesful fit found
         if len(self.all_fits) > 0:
-            # Select criteria for best fit selection: in any NaN calculated fallback to RMSE selection
-            if nan_ic_calculated:
-                self.all_fits = sorted(self.all_fits, key=lambda x: x[2]); self.best_fit_criteria = "RMSE"   # sort on RMSE
+            if selection_criteria in self.best_fit_criterias:
+                self.best_fit_criteria = selection_criteria
+                if self.best_fit_criteria == self.best_fit_criterias[0]:  # sort on the smallest RMSE
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x[2]) 
+                elif self.best_fit_criteria == self.best_fit_criterias[1]:  # sort on the smallest MAE
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x[3])
+                # sort on Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
+                elif self.best_fit_criteria == self.best_fit_criterias[2]:
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x[4])
             else:
-                # sort on IC - Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
-                self.all_fits = sorted(self.all_fits, key=lambda x: x[3]); self.best_fit_criteria = "IC"
-            self.best_fit = self.all_fits[0]  # best function along with parameters with minimal RMSE
-            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1])
-            curve_fitted = True; peak_defined = self.peak_params[0]
+                __warn_mess = (f"\nInput Criteria {selection_criteria} not found among implemented / allowed {self.best_fit_criterias}."
+                               + " Fallback to 'RMSE'")
+                warnings.warn(__warn_mess, stacklevel=2); self.best_fit_criteria = self.best_fit_criterias[0]
+                self.all_fits = sorted(self.all_fits, key=lambda x: x[2])
+            self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
+            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1]); curve_fitted = True; peak_defined = self.peak_params[0]
             if verbose:
-                if self.best_fit_criteria == "RMSE":
-                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on RMSE:", 
-                          round(self.best_fit[2], 4))
-                else:
-                    print("Found best fit function:", full_f_names.get(self.best_fit[0].__name__), "| based on IC:", round(self.best_fit[3], 3))
+                if self.best_fit_criteria == self.best_fit_criterias[0]:
+                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__), 
+                          f"| based on {self.best_fit_criteria}:", round(self.best_fit[2], 6))
+                elif self.best_fit_criteria == self.best_fit_criterias[1]:
+                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__), 
+                          f"| based on {self.best_fit_criteria}:", round(self.best_fit[3], 6))
+                elif self.best_fit_criteria == self.best_fit_criterias[2]:
+                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__), 
+                          f"| based on {self.best_fit_criteria}:", round(self.best_fit[4], 3))
             if plot_best_fit:
                 fig_id = random.randint(a=0, b=999)
                 if not plt.isinteractive():
@@ -509,12 +536,15 @@ class PeakFit1D():
             return None
 
     # %% Utility methods
-    def get_best_fit_criteria(self, f: Callable, rmse: float) -> float:
+    def get_information_criteria(self, f: Callable, rmse: float, ic_type: str = "aicc") -> float:
         """
         Get Corrected Akaike Information Criterion (AICc) or Bayesian Information Criterion (BIC).
 
         Lower AICc and BIC values indicate a preferable balance between goodness of fit and model complexity:\n
-        more fitted parameters (K) => more flexible curve fitting.
+        more fitted parameters (k) => more flexible curve fitting. \n
+        AICc: n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1), where n = X values length, k = number of fitted function parameters. \n
+        BIC: n*np.log(rmse**2) + k*np.log(n), returned if criteria n > max(k) + 1 not satisfied, where max(k) = max number of parameters
+        among implemented functions.
 
         Parameters
         ----------
@@ -522,20 +552,21 @@ class PeakFit1D():
             Succesfully fitted function.
         rmse : float
             Calculated RMSE.
+        ic_type : str, optional
+            The identifier for calculating AICc is "aicc". The default is 'aicc'.
 
         Returns
         -------
         float | np.nan (what is effectively also type 'float')
-            Calculated float AICc or BIC if they can be defined, np.nan if they cannot be defined.
+            Calculated float AICc or BIC if they can be defined, np.nan function not found as implemented.
 
         """
-        generator = (len(params) for params in default_f_params.values())  # Generator expression
-        max_k = max(generator) + 1  # using Generator should evaluate the max iteratively
         if f.__name__ in default_f_params:
             n = self.x_norm.shape[0]; k = len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
-                rmse = 1e-6  # clamp RMSE to the smallest meaninful value used for also in fitting_funcs.py
-            if n > max_k + 1:  # universal criteria, assuming that max # of parameters in all implemented functions == 5 (N > 5+1)
+                rmse = 1e-6  # clamp RMSE to the smallest meaningful value used for also in fitting_funcs.py
+            # get AICc or BIC
+            if ic_type == "aicc":
                 return n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1)
             else:
                 return n*np.log(rmse**2) + k*np.log(n)
@@ -575,7 +606,7 @@ class PeakFit1D():
         return is_ascending, x_return
 
     @staticmethod
-    def add_awgn(y: nparray, noise_fraction: float = 0.075) -> nparray:
+    def add_awgn(y: nparray, noise_fraction: float = 0.075, seed: int | None = None) -> nparray:
         """
         Add to the input y array Gaussian noise with zero average ("Additive White Gaussian Noise").
 
@@ -584,7 +615,9 @@ class PeakFit1D():
         y : nparray
             Original array.
         noise_fraction : float, optional
-            Max STD of noise as percentage/100. The default is 0.075.
+            Max STD of Gaussian Standard Noise in a range [0.0, 1.0]. The default is 0.075.
+        seed : int | None, optional
+            Optional seed for making randomazed addition repeatable.
 
         Returns
         -------
@@ -592,11 +625,9 @@ class PeakFit1D():
             y + additive Gaussian noise.
 
         """
-        if noise_fraction < 0.0:
-            noise_fraction = abs(noise_fraction)
-        if noise_fraction > 1.0 + 1e-6:
-            noise_fraction *= 1e-3
-        rng = np.random.default_rng(); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
+        if noise_fraction > 1.0 + 1e-6 or noise_fraction < 0.0:
+            raise ValueError("Noise Fraction should be in a range [0.0, 1.0]")
+        rng = np.random.default_rng(seed); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
         return y.copy() + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
 
 

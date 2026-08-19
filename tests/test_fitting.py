@@ -78,7 +78,7 @@ def test_basic_fitting():
             
     # Test that for heavily-disturbed by AWGN noise data the fitted peak / valley isn't needle-like
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
-    y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
+    y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=25)
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak, xp, yp = pf.get_peak_values()
     if is_peak is not None:
         assert 0.0 < xp < 1.0 and 0.85*y.min() <= yp <= 1.15*y.max(), ("\nFitting of noisy data results in peak: {xp, yp} - what not" 

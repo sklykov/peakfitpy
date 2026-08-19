@@ -91,7 +91,7 @@ if __name__ == "__main__":
     if test_pure_noise:
         x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
         y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
-        pf = PeakFit1D(x, y); pf.find_best_fit(True, True); is_peak, xp, yp = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criteria="IC"); is_peak, xp, yp = pf.get_peak_values()
         if is_peak is not None:
             print("X peak within X range:", 0.0 < xp < 1.0, 
                   "\nY peak within min - max dataset values (no needle-like):", 0.85*y.min() <= yp <= 1.15*y.max())
@@ -100,13 +100,13 @@ if __name__ == "__main__":
     if test_sorting:
         x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]
         y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2)
-        pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_d, xp_d, yp_d = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criteria="IC"); is_peak_d, xp_d, yp_d = pf.get_peak_values()
         x = x[::-1]; y = y[::-1]  # inverse order
-        pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_inv, xp_inv, yp_inv = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criteria="IC"); is_peak_inv, xp_inv, yp_inv = pf.get_peak_values()
         print("Inversion has no effect on fit:", not is_peak_d and not is_peak_inv and np.isclose(xp_d, xp_inv) and np.isclose(yp_d, yp_inv))
         rng = np.random.default_rng()
         shuffled_indices = rng.permutation(x.shape[0])
         x = x[shuffled_indices]; y = y[shuffled_indices]
-        pf = PeakFit1D(x, y); pf.find_best_fit(True, True); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criteria="IC"); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
         print("Shuffling Data has no effect on fit:", not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv)
               and np.isclose(yp_shf, yp_inv))
