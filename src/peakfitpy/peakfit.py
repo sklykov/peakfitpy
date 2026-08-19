@@ -65,10 +65,10 @@ nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 # %% Main class def.
 class PeakFit1D():
     """
-    Base class for fitting multiple curves on 1D sampled data (X).
+    Base class for fitting multiple curves to 1D sampled data.
 
-    1D data in the sense of function Y = f(X) and assuming finite and real valued, non-constant X and Y values.
-
+    X values are expected to be finite, real, unique and non-constant. Y values are expected to be finite, real and non-constant. \n
+    
     """
 
     x_vals : np.ndarray; y_vals : np.ndarray; x_norm : np.ndarray; y_norm : np.ndarray; best_fit_criteria: str
@@ -174,7 +174,7 @@ class PeakFit1D():
         self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
 
     # %% Fitting
-    def fit_function(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
+    def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False) -> tuple[bool, bool]:
         """
         Fit in a loop functions for X, Y normalized data.
 
@@ -357,8 +357,7 @@ class PeakFit1D():
         x_norm = np.linspace(start=0.0, stop=1.0, num=401)
         for f_name in self.function_names:
             if f_name in symmetric_f_names:
-                i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+                i = self.function_names.index(f_name); y_norm = self.functions[i](x_norm, *self.function_params[f_name])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
         plt.figure("All generic / assymetric curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
