@@ -15,16 +15,11 @@ from numbers import Real
 from typing import Any
 
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.polynomial import Polynomial
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
-
-# For compatibility between running configurations in Spyder and PyCharm IDEs
-with suppress(ImportError):
-    matplotlib.use('Qt5Agg')
-
-import matplotlib.pyplot as plt
 
 from .utils.fitting_funcs import (
     bump_f,
@@ -59,6 +54,7 @@ from .utils.fitting_funcs import (
 __docformat__ = "numpydoc"
 RealSeq = Sequence[Real]  # for providing type hints accepting types like tuple[float], list[int]
 nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
+RealNum = np.floating[Any] | np.integer[Any]
 
 
 # %% Main class def.
@@ -71,9 +67,9 @@ class PeakFit1D():
     """
 
     x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.floating[Any]]; y_norm: NDArray[np.floating[Any]]
-    x_min : Real; x_max : Real; x_range : Real; y_min : Real; y_max : Real; y_range : Real; all_fits: list
+    x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum; all_fits: list
     polynomials: tuple[str, ...]; best_fit: tuple | None; peak_params: tuple | None; best_fit_criteria: tuple[str, ...]
-    use_default_plot_props: bool; best_fit_criterion: str
+    best_fit_criterion: str
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -146,7 +142,7 @@ class PeakFit1D():
                     self.x_vals = self.x_vals[ids]; self.y_vals = self.y_vals[ids]  # use sorted X indices for sorting both
             else:
                 raise ValueError("\nProvided X data doesn't contain all unique values (i.e. some or all values are identical)")
-        # Normalize X data for both uniform ranges [-1.0, 1.0] and [0.0, 1.0] - useful for fits
+        # Normalize X data for the uniform range [0.0, 1.0] for improving numerical fit stability
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
             self.x_norm = (self.x_vals.copy() - self.x_min).astype(np.float64) / self.x_range  # normalization to the [0.0, 1.0] range
@@ -207,7 +203,8 @@ class PeakFit1D():
         selection_criteria : str, optional
             Criteria for selection of the best fit. Available: "RMSE", "MAE", "IC" (mix of RMSE + minimal function flexibility). \n
             "IC" stands for "Information Criteria". The default is "RMSE" (universally computable value).\n
-            Note that "IC" will be available only for datasets with size > max(number of fitted parameters) + 1 (size >= 8 as for now).
+            Note that "IC" is available only when AICc is defined for every candidate model: n > max(k) + 1, \n
+            where k is the number of fitted curve parameters + 1 for the estimated residual variance (currently n >= 8).
 
         Returns
         -------
@@ -290,10 +287,7 @@ class PeakFit1D():
                     print("Best fit function:", full_f_names.get(self.best_fit[0].__name__),
                           f"| based on {self.best_fit_criterion}:", round(self.best_fit[4], 3))
             if plot_best_fit:
-                fig_id = random.randint(a=0, b=999)
-                if not plt.isinteractive():
-                    plt.ion()
-                x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
+                fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
                 if plot_norm_best_fit:
                     plt.figure(f"Best fit result - Normalized Values {fig_id}")
                     plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
@@ -343,12 +337,9 @@ class PeakFit1D():
             return None, None, None
 
     # %% Plotting
-    def set_default_plot_props(self):
-        pass
-
     def plot_norm(self, f_name: str='gaussian_f'):
         """
-        Plot interactively provided function for X values in the range [0.0, 1.0] (x_range="0,1") or [-1.0, 1.0] (x_range="-1,1").
+        Plot interactively provided function for X values in the range [0.0, 1.0].
 
         List of available imported functions is available as the class attribute 'function_names'.
 
@@ -365,8 +356,6 @@ class PeakFit1D():
         if f_name in self.function_names:
             i = self.function_names.index(f_name); x_norm = np.linspace(start=0.0, stop=1.0, num=401)
             y_norm = self.functions[i](x_norm, *self.function_params[f_name])
-            if not plt.isinteractive():
-                plt.ion()
             full_f_name = full_f_names.get(f_name, 'Curve'); x_r = "[0.0, 1.0]"
             plt.figure(f"{full_f_name} X={x_r}"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
         else:
@@ -382,8 +371,6 @@ class PeakFit1D():
         None
 
         """
-        if not plt.isinteractive():
-            plt.ion()
         plt.figure("All symmetric around max curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
         x_norm = np.linspace(start=0.0, stop=1.0, num=401)
         for f_name in self.function_names:
@@ -546,7 +533,7 @@ class PeakFit1D():
 
         Lower AICc and BIC values indicate a preferable balance between goodness of fit and model complexity:\n
         more fitted parameters (k) => more flexible curve fitting. \n
-        AICc: n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1), where n = X values length, k = number of fitted function parameters. \n
+        AICc: n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1), where n = X values length, k = number of fitted function parameters + 1.\n
         BIC: n*np.log(rmse**2) + k*np.log(n)
 
         Parameters
@@ -556,7 +543,7 @@ class PeakFit1D():
         rmse : float
             Calculated RMSE.
         ic_type : str, optional
-            The identifier for calculating AICc is "aicc". The default is 'aicc'.
+            The identifier for calculating AICc is "aicc" or for BIC is "bic". The default is 'aicc'.
 
         Returns
         -------
@@ -570,9 +557,14 @@ class PeakFit1D():
                 rmse = 1e-6  # clamp RMSE to the smallest meaningful value used for also in fitting_funcs.py
             # get AICc or BIC
             if ic_type == "aicc":
-                return n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1)
-            else:
+                if n > k + 1:
+                    return n*np.log(rmse**2) + 2*k + (2*k*(k+1))/(n - k - 1)
+                else:
+                    return np.nan
+            elif ic_type == "bic":
                 return n*np.log(rmse**2) + k*np.log(n)
+            else:
+                raise ValueError(f"\nProvided IC type {ic_type} not implemented 'aicc' or 'bic'")
         else:
             return np.nan
 
@@ -632,6 +624,21 @@ class PeakFit1D():
             raise ValueError("Noise Fraction should be in a range [0.0, 1.0]")
         rng = np.random.default_rng(seed); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
         return y.copy() + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
+
+    @staticmethod
+    def set_interactive_pyqt_plot():
+        """
+        Try to set as matplotlib backend the Qt5Agg and switch interactive plotting.
+
+        Returns
+        -------
+        None
+
+        """
+        with suppress(ImportError):   # For compatibility between running configurations in IDEs
+            matplotlib.use('Qt5Agg')
+        if not plt.isinteractive():
+            plt.ion()
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)

@@ -37,7 +37,7 @@ symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzi
 # Generic / asymmetric functions
 generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial", "emg_f", "line_f")
 
-tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0] or [-1.0, 1.0]
+tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0]
 
 
 # %% Function def-s
@@ -206,7 +206,7 @@ def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
     return k*X + b
 
 
-def constant_f(X: np.ndarray | float, b: float) -> float:
+def constant_f(X: np.ndarray | float, b: float) ->  np.ndarray | float:
     """
     Parametric Constant Line function for fallback fitting (preferable for noise with std = 1.0 if # of samples is enough).
 
@@ -546,7 +546,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
     k : float
         Scaling parameter.
     m : float
-        Center of symmetry.
+        Gaussian-component location parameter in the SciPy parameterization.
     sigma : float
         Gaussian width scaling.
     tau : float
@@ -718,68 +718,69 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
             a, b, c, d, e = fitted_params; n_digits = 9
             root_tol = 10.0**(-n_digits+3)  # looser tolerance accounting for numerical root-solving uncertainty
             if abs(a) >= tol:
-                roots = np.roots([4*a, 3*b, 2*c, d])  # for f'(x) = 4*a*x^3 + 3*b*x^2 + 2*c*x + d
-                # below - keep only roots with small imaginary part, the returned roots are complex and real part withing selected x range
-                real_roots = sorted([r.real for r in roots if abs(r.imag) < root_tol and x_min < r.real < x_max])
-                # keep only unique, distinct roots
-                unique_roots = []  # empty container for collecting
-                for x_r in real_roots:
-                    if not unique_roots or abs(x_r - unique_roots[-1]) > root_tol:  # add 1st element or compare with the previous one (max)
-                        unique_roots.append(x_r)
-                if len(unique_roots) > 0:  # 1, 2 or 3 real, distinguishable roots
-                    extreme_points = []  # define peak / valley candidates, ignore stationary inflection and flat max / min solutions
-                    for i, x_r in enumerate(unique_roots):
-                        f2 = 12.0*a*(x_r**2) + 6.0*b*x_r + 2.0*c  # f''(x_r)
-                        if f2 < -tol:  # f''(x_r) < generic tol effectively
-                            extreme_points.append({i: "peak"})
-                        elif f2 > tol:
-                            extreme_points.append({i: "valley"})
+                # Check special extreme point that is valid for the polynomial form (x - r)^4, where r is in [0.0, 1.0]
+                x_flat = -b/(4.0*a); is_flat_extreme = False
+                if x_min < x_flat < x_max:
+                    f1 = 4.0*a*(x_flat**3) + 3.0*b*(x_flat**2) + 2.0*c*x_flat + d  # f'(x) == 0 for the extreme point
+                    f2 = 12.0*a*(x_flat**2) + 6.0*b*x_flat +  2.0*c  # f''(x) == 0 for the extreme point
+                    if abs(f1) < tol and abs(f2) < tol:
+                        is_flat_extreme = True
+                        if a > 0.0:
+                            is_max = False; x0 = x_flat; y0 = quartic_polynomial(x_flat, a, b, c, d, e)
                         else:
-                            # below - special point handling for the polynomial like (x-0.5)^4
-                            x_r_left = x_r - 10.5*tol; x_r_right = x_r + 10.5*tol
-                            f1_left = 4.0*a*((x_r_left)**3) + 3.0*b*(x_r_left**2) + 2.0*c*x_r_left + d
-                            f1_right = 4.0*a*((x_r_right)**3) + 3.0*b*(x_r_right**2) + 2.0*c*x_r_right + d
-                            if f1_left > 0.0 and f1_right < 0.0:  # the f'(x) change the sign from left to right, from + to - => peak
+                            is_max = True; x0 = x_flat; y0 = quartic_polynomial(x_flat, a, b, c, d, e)
+                if not is_flat_extreme:
+                    roots = np.roots([4*a, 3*b, 2*c, d])  # for f'(x) = 4*a*x^3 + 3*b*x^2 + 2*c*x + d
+                    # below - keep only roots with small imaginary part, the returned roots are complex and real part withing selected x range
+                    real_roots = sorted([r.real for r in roots if abs(r.imag) < root_tol and x_min < r.real < x_max])
+                    # keep only unique, distinct roots
+                    unique_roots = []  # empty container for collecting
+                    for x_r in real_roots:
+                        if not unique_roots or abs(x_r - unique_roots[-1]) > root_tol:  # add 1st element or compare with the previous one (max)
+                            unique_roots.append(x_r)
+                    if len(unique_roots) > 0:  # 1, 2 or 3 real, distinguishable roots
+                        extreme_points = []  # define peak / valley candidates, ignore stationary inflection
+                        for i, x_r in enumerate(unique_roots):
+                            f2 = 12.0*a*(x_r**2) + 6.0*b*x_r + 2.0*c  # f''(x_r)
+                            if f2 < -tol:  # f''(x_r) < generic tol effectively
                                 extreme_points.append({i: "peak"})
-                            elif f1_left < 0.0 and f1_right > 0.0:  # handled valley. Other conditions - ignored
+                            elif f2 > tol:
                                 extreme_points.append({i: "valley"})
-                    # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
-                    if len(extreme_points) == 0 or len(extreme_points) == 3:
-                        is_definable = False
-                    elif len(extreme_points) == 1:
-                        y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
-                        y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
-                        i_xr = next(iter(extreme_points[0]))  # recorded index of found extreme point as the single key from dictionary
-                        xr = unique_roots[i_xr]; y_xr = round(quartic_polynomial(xr, a, b, c, d, e), n_digits)
-                        if extreme_points[0][i_xr] == "peak" and y_xr > y_a and y_xr > y_b:
-                            is_max = True; x0 = xr; y0 = y_xr
-                        elif extreme_points[0][i_xr] == "valley" and y_xr < y_a and y_xr < y_b:
-                            is_max = False; x0 = xr; y0 = y_xr
-                        elif extreme_points[0][i_xr] == "single extreme":
-                            x0 = xr; y0 = y_xr; is_max = y_xr > y_a and y_xr > y_b
-                        else:
-                            is_definable = False  # local peak / valley only
-                    elif len(extreme_points) == 2:  # peak and valley candidates, one of them is only local
-                        y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
-                        y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
-                        i_xr1 = next(iter(extreme_points[0])); i_xr2 = next(iter(extreme_points[1]))
-                        xr1 = unique_roots[i_xr1]; y_xr1 = round(quartic_polynomial(xr1, a, b, c, d, e), n_digits)
-                        xr2 = unique_roots[i_xr2]; y_xr2 = round(quartic_polynomial(xr2, a, b, c, d, e), n_digits)
-                        is_global_xr1 = ((extreme_points[0][i_xr1] == "peak" and y_xr1 > y_a and y_xr1 > y_b)
-                                        or (extreme_points[0][i_xr1] == "valley" and y_xr1 < y_a and y_xr1 < y_b))
-                        is_global_xr2 = ((extreme_points[1][i_xr2] == "peak" and y_xr2 > y_a and y_xr2 > y_b)
-                                        or (extreme_points[1][i_xr2] == "valley" and y_xr2 < y_a and y_xr2 < y_b))
-                        if is_global_xr1 and is_global_xr2:
+                        # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
+                        if len(extreme_points) == 0 or len(extreme_points) == 3:
                             is_definable = False
-                        elif is_global_xr1 and not is_global_xr2:
-                            is_max = extreme_points[0][i_xr1] == "peak"; x0 = xr1; y0 = y_xr1
-                        elif not is_global_xr1 and is_global_xr2:
-                            is_max = extreme_points[1][i_xr2] == "peak"; x0 = xr2; y0 = y_xr2
+                        elif len(extreme_points) == 1:
+                            y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
+                            y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
+                            i_xr = next(iter(extreme_points[0]))  # recorded index of found extreme point as the single key from dictionary
+                            xr = unique_roots[i_xr]; y_xr = round(quartic_polynomial(xr, a, b, c, d, e), n_digits)
+                            if extreme_points[0][i_xr] == "peak" and y_xr > y_a and y_xr > y_b:
+                                is_max = True; x0 = xr; y0 = y_xr
+                            elif extreme_points[0][i_xr] == "valley" and y_xr < y_a and y_xr < y_b:
+                                is_max = False; x0 = xr; y0 = y_xr
+                            else:
+                                is_definable = False  # local peak / valley only
+                        elif len(extreme_points) == 2:  # peak and valley candidates, one of them is only local
+                            y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
+                            y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
+                            i_xr1 = next(iter(extreme_points[0])); i_xr2 = next(iter(extreme_points[1]))
+                            xr1 = unique_roots[i_xr1]; y_xr1 = round(quartic_polynomial(xr1, a, b, c, d, e), n_digits)
+                            xr2 = unique_roots[i_xr2]; y_xr2 = round(quartic_polynomial(xr2, a, b, c, d, e), n_digits)
+                            is_global_xr1 = ((extreme_points[0][i_xr1] == "peak" and y_xr1 > y_a and y_xr1 > y_b)
+                                            or (extreme_points[0][i_xr1] == "valley" and y_xr1 < y_a and y_xr1 < y_b))
+                            is_global_xr2 = ((extreme_points[1][i_xr2] == "peak" and y_xr2 > y_a and y_xr2 > y_b)
+                                            or (extreme_points[1][i_xr2] == "valley" and y_xr2 < y_a and y_xr2 < y_b))
+                            if is_global_xr1 and is_global_xr2:
+                                is_definable = False
+                            elif is_global_xr1 and not is_global_xr2:
+                                is_max = extreme_points[0][i_xr1] == "peak"; x0 = xr1; y0 = y_xr1
+                            elif not is_global_xr1 and is_global_xr2:
+                                is_max = extreme_points[1][i_xr2] == "peak"; x0 = xr2; y0 = y_xr2
+                            else:
+                                is_definable = False
                         else:
                             is_definable = False
-                    else:
-                        is_definable = False
-            else:  # degenerative case - effectively, this is qubic polynomial
+            else:  # degenerative case - effectively, this is cubic polynomial
                 is_definable, is_max, x0, y0 = get_peak(cubic_polynomial, (b, c, d, e))  # call of the method with the cubic function
         else:
             is_definable = False
