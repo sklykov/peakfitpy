@@ -6,7 +6,7 @@ The pytest library available on: https://docs.pytest.org/en/latest/contents.html
 For running collected here tests, it's enough to run the command "pytest" from the repository location in a command line.
 
 @author: Sergei Klykov
-@licence: MIT
+@license: MIT
 
 """
 # %% Global imports

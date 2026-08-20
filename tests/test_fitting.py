@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 """
-Test the fitting for different scenarious of PeakFit1D.
+Test the fitting for different scenarios of PeakFit1D.
 
 @author: Sergei Klykov
-@licence: MIT
+@license: MIT
 
 """
 # %% Global imports
@@ -58,7 +57,7 @@ def test_basic_fitting():
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.find_best_fit()
     n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n = pf.best_fit[0].__name__
     assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
-    assert f_n == "parabola_f", f"For 3 asymetric points problem the best fit should be parabola, instead got {f_n}"
+    assert f_n == "parabola_f", f"For 3 asymmetric points problem the best fit should be parabola, instead got {f_n}"
     
     # Test fitting of 4 points and number of suitable functions for it
     x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22]); pf = PeakFit1D(x, y); pf.find_best_fit()

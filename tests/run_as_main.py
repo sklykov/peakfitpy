@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Run some tests for peakfit library directly in this script without pytest usage.
+Run some tests for peakfitpy library directly in this script without pytest usage.
 
-@author: Sergei Klykov, @year: 2026, @licence: MIT \n
+@author: Sergei Klykov, @year: 2026, @license: MIT \n
 
 """
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, parabola_f, lorentzian_f
+from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, lorentzian_f, parabola_f
 
 plot_all_curves_with_defaults = True  # for checking default parameters consistency
 test_simple_case = False  # common manual test - well-defined peak
@@ -26,21 +26,6 @@ test_sorting = True
 if __name__ == "__main__":
 
     pf = PeakFit1D(x=np.asarray([1, 2, 3]), y=np.asarray([0, 1, 0]))
-
-    # Individual plots with default parameters
-    # pf.plot_norm(); pf.plot_norm(x_range="-1,1")  # Gaussian plotting
-    # pf.plot_norm(f_name=pf.function_names[1]); pf.plot_norm(f_name=pf.function_names[1], x_range="-1,1")  # Parabola
-    # pf.plot_norm(f_name=pf.function_names[2]); pf.plot_norm(f_name=pf.function_names[2], x_range="-1,1")  # Leveled Gaussian
-    # pf.plot_norm(f_name=pf.function_names[3]); pf.plot_norm(f_name=pf.function_names[3], x_range="-1,1")  # Lorentzian
-    # pf.plot_norm(f_name=pf.function_names[4]); pf.plot_norm(f_name=pf.function_names[4], x_range="-1,1")  # Line (average)
-    # pf.plot_norm(f_name=pf.function_names[5]); pf.plot_norm(f_name=pf.function_names[5], x_range="-1,1")  # Hyperbolic secant
-    # pf.plot_norm(f_name=pf.function_names[6], x_range="-1,1")  # Bump Function only defined in a range [-b, b] or [-1.0, 1.0]
-    # pf.plot_norm(f_name=pf.function_names[7]); pf.plot_norm(f_name=pf.function_names[7], x_range="-1,1")  # Witch of Agnesi
-    # pf.plot_norm(f_name=pf.function_names[8]); pf.plot_norm(f_name=pf.function_names[8], x_range="-1,1")  # Deriv. Logistic F()
-    # pf.plot_norm(f_name=pf.function_names[9]); pf.plot_norm(f_name=pf.function_names[9], x_range="-1,1")  # Cosine
-    # pf.plot_norm(f_name=pf.function_names[10]) # Rayleigh PDF
-    # pf.plot_norm(f_name=pf.function_names[11]) # Mirrored Rayleigh PDF
-    # pf.plot_norm(f_name=pf.function_names[12]); pf.plot_norm(f_name=pf.function_names[11], x_range="-1,1")  # Laplace PDF
 
     # Composed plot for both ranges
     if plot_all_curves_with_defaults:
@@ -69,7 +54,7 @@ if __name__ == "__main__":
     if test_line:
         x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
         pf = PeakFit1D(x, y); pf.find_best_fit(verbose=True, plot_best_fit=True, plot_norm_best_fit=True)
-        print("# of fitted funcitons:", len(pf.all_fits))
+        print("# of fitted functions:", len(pf.all_fits))
          
     # Test that only limited amount of functions can be fitted to 3 points only
     if test_smallest_points_valley:

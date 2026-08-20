@@ -2,7 +2,7 @@
 """
 Symbolic definitions of functions for fitting.
 
-@author: Sergei Klykov, @year: 2026, @licence: MIT \n
+@author: Sergei Klykov, @year: 2026, @license: MIT \n
 
 """
 import warnings
@@ -15,8 +15,8 @@ from scipy.stats import exponnorm
 
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
                     "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 0.125, 0.5, 0.0],
-                    "bump_f": [0.5, e, 0.5, 0.0], "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0], 
-                    "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0], 
+                    "bump_f": [0.5, e, 0.5, 0.0], "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0],
+                    "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0],
                     "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
                     "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "generalized_gaussian_f": [0.2, 3.5, 0.5, 1.0, 0.0],
                     "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], "constant_f": [0.5],
@@ -25,7 +25,7 @@ default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
                 "lorentzian_f": "Lorentzian", "line_f": "Line", "sech_f": "Hyperbolic Secant", "bump_f": "Bump Function",
                 "logistic_derivative_f": "Derivative of Logistic", "laplace_pdf_f": "Laplace PDF",
-                "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",  
+                "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
                 "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
                 "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
                 "emg_f": "Exponentially Modified Gaussian PDF", "constant_f": "Constant Line"}
@@ -34,7 +34,7 @@ full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_le
 symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f",
                      "logistic_derivative_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f", "constant_f")
 
-# Generic / assymetric functions
+# Generic / asymmetric functions
 generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomial", "quartic_polynomial", "emg_f", "line_f")
 
 tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0] or [-1.0, 1.0]
@@ -44,7 +44,7 @@ tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0]
 def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarray | float:
     """
     Callable parabola function for fitting.
-    
+
     Equation: Y = a*X^2 + b*X + c
 
     Parameters
@@ -96,7 +96,7 @@ def gaussian_f(X: np.ndarray | float, k: float, b: float, c: float) -> np.ndarra
 
 def gaussian_leveled_f(X: np.ndarray | float, k: float, b: float, c: float, d: float) -> np.ndarray | float:
     """
-    Parametric Gaussian function with fitting of non-zero level (asympotic minimal Y value).
+    Parametric Gaussian function with fitting of non-zero level (asymptotic minimal Y value).
 
     Equation: k*exp((-(X-b)^2)/(2*c^2)) + d.
 
@@ -233,7 +233,7 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
     Parametric hyperbolic secant.
 
     Equation: Y = k*exp(-|(X-b)/a|) / (exp(-2.0*|(X-b)/a|) + 1.0) + d \n
-    
+
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -264,7 +264,7 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
     Parametric bump function.
 
     Equation: Y = k*exp(b^2 / ((X-m)^2 - b^2)) + d where abs(X-m) < b else d \n
-    
+
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -304,7 +304,7 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
     Parametric derivative of logistic function.
 
     Equation: Y = k*(exp(-|(X-b)/a|) / (1.0 + exp(-|(X-b)/a|))^2) + d \n
-    
+
     Source: https://en.wikipedia.org/wiki/Bell-shaped_function
 
     Parameters
@@ -478,7 +478,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
     Callable Moffat function for fitting.
 
     Function Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d. \n
-    
+
     Reference: https://en.wikipedia.org/wiki/Moffat_distribution
 
     Parameters
@@ -509,7 +509,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
 def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> np.ndarray | float:
     """
     Callable sinc-squared function for fitting.
-    
+
     Y = k*sinc((X-m)/(pi*w))^2 + d.
 
     Parameters
@@ -529,7 +529,7 @@ def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> 
     -------
     np.ndarray | float
         Y = k*sinc((X-m)/(pi*w))^2 + d.
-        
+
     """
     z = (X - m)/(pi*w)
     return k*(np.sinc(z)**2) + d
@@ -558,6 +558,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
     -------
     np.ndarray | float
         Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma).
+
     """
     K = tau / sigma  # as used by SciPy
     return k*exponnorm.pdf(X, K=K, loc=m, scale=sigma) + d
@@ -709,7 +710,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                     is_max = is_max_02; x0 = x02; y0 = y02
                 else:
                     is_definable = False
-            elif abs(a) < tol:  # degenerative case - effectively, this is parabola 
+            elif abs(a) < tol:  # degenerative case - effectively, this is parabola
                 is_definable, is_max, x0, y0 = get_peak(parabola_f, (b, c, d))  # call of the method with the parabola function
             else:
                 is_definable = False  # either there is no max / min, or it's stationary inflection point (f(x) = x^3 it is x = 0)
@@ -734,11 +735,14 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                         elif f2 > tol:
                             extreme_points.append({i: "valley"})
                         else:
-                            x_r_left = x_r - 11.0*tol; x_r_right = x_r + 11.0*tol
+                            # below - special point handling for the polynomial like (x-0.5)^4
+                            x_r_left = x_r - 10.5*tol; x_r_right = x_r + 10.5*tol
                             f1_left = 4.0*a*((x_r_left)**3) + 3.0*b*(x_r_left**2) + 2.0*c*x_r_left + d
                             f1_right = 4.0*a*((x_r_right)**3) + 3.0*b*(x_r_right**2) + 2.0*c*x_r_right + d
-                            if f1_left*f1_right < 0.0:  # the f'(x) change the sign from left to right
-                                extreme_points.append({i: "single extreme"})  # special point for polynomial like (x-0.5)^4
+                            if f1_left > 0.0 and f1_right < 0.0:  # the f'(x) change the sign from left to right, from + to - => peak
+                                extreme_points.append({i: "peak"})
+                            elif f1_left < 0.0 and f1_right > 0.0:  # handled valley. Other conditions - ignored
+                                extreme_points.append({i: "valley"})
                     # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
                     if len(extreme_points) == 0 or len(extreme_points) == 3:
                         is_definable = False
@@ -775,7 +779,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
                             is_definable = False
                     else:
                         is_definable = False
-            else:  # degenerative case - effectively, this is qubic polynomial 
+            else:  # degenerative case - effectively, this is qubic polynomial
                 is_definable, is_max, x0, y0 = get_peak(cubic_polynomial, (b, c, d, e))  # call of the method with the cubic function
         else:
             is_definable = False
@@ -792,9 +796,9 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
     ----------
     f_name : str
         Function name, can be get as f.__name__ where f - function from an implemented above functions. \n
-        Note that not all functions from this module has the analytically calculated FWHM, e.g. polynomials. 
-        List of implemented functions: gaussian_f, gaussian_leveled_f, lorentzian_f, bump_f, witch_agnesi_f, sech_f, \n
-        logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f, laplace_pdf_f, generalized_gaussian_f, moffat_f, sinc_sq_f. \n
+        Note that not all functions from this module has the analytically calculated FWHM, e.g. polynomials.
+        List of implemented functions: gaussian_f, gaussian_leveled_f, lorentzian_f, bump_f, sech_f, laplace_pdf_f, \n
+        logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f. \n
         Note that width parameter naming depends on the used in this module parameter list and naming, \n
         e.g. for 'gaussian_f' - parameter 'c'.
     w_param : float
@@ -806,7 +810,7 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
     -------
     float
         Estimated Full Width at Half-Maximum (FWHM).
-        
+
     """
     if f_name in default_f_params:
         if f_name == "gaussian_f" or f_name == "gaussian_leveled_f":
@@ -858,7 +862,7 @@ w_max_laplace = fwhm_max/get_fwhm("laplace_pdf_f", 1.0)
 w_max_gaussian_gen = fwhm_max/get_fwhm("generalized_gaussian_f", 1.0, [1.0, 10.0, 0.5, 1.0, 0.0])
 w_max_moffat = fwhm_max/get_fwhm("moffat_f", 1.0, [1.0, 0.5, 1.0, 0.5, 0.0])
 w_sinc_sq = fwhm_max/get_fwhm("sinc_sq_f", 1.0)
-w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts, 
+w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts,
 
 params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max_gaussian]),
                      "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, w_max_gaussian, d_max]),
@@ -876,7 +880,7 @@ params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max
                      }
 
 # Define the index of width min parameter to correct for using the actual sampling estimation
-params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0, 
-                      "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1, 
-                      "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3), 
+params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0,
+                      "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1,
+                      "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3),
                       }
