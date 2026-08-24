@@ -7,4 +7,4 @@ The utils model autoexports.
 @licence: MIT, @year: 2026
 
 """
-__all__ = ['fitting_funcs']
+__all__ = ['fitting_funcs', 'fitting_result']

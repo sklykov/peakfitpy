@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-The "peakfitpy" package is intended for fitting 2D curves for possible location of a single peak.
+The "peakfitpy" package provides automatic model fitting and single peak/valley characterization for 1D sampled data.
 
 @author: Sergei Klykov
 
@@ -10,7 +10,8 @@ The "peakfitpy" package is intended for fitting 2D curves for possible location 
 
 __version__ = "0.0.1"  # Straightforward way of specifying package version and including it to the package attributes
 
-# Univesal logic for making all main classes and functions available after calling 'from project import *'
+# Univesal logic for making all main classes and functions available after calling 'from peakfitpy import *'
 from .peakfit import PeakFit1D
+from .utils.fitting_result import Fit1DResult, PeakResult
 
-__all__ = ['PeakFit1D']
+__all__ = ['PeakFit1D', 'Fit1DResult', 'PeakResult']

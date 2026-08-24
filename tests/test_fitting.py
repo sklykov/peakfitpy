@@ -48,22 +48,22 @@ def test_basic_fitting():
     
     # Test line fitting as fallback, baseline fitting
     x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
-    pf = PeakFit1D(x, y); curve_fitted, peak_defined = pf.find_best_fit(); f_n = pf.best_fit[0].__name__
+    pf = PeakFit1D(x, y); curve_fitted, peak_defined = pf.find_best_fit(); f_n = pf.best_fit.function.__name__
     assert curve_fitted and not peak_defined, f"Curve should be fitted: {curve_fitted}, peak not defined or False: {peak_defined}"
     assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"
     assert len(pf.all_fits) == 2, f"Only 2 lines can be fitted to only 2 points but fitted: {len(pf.all_fits)}"
     
     # Test fitting of 3 points and number of suitable functions for it
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.find_best_fit()
-    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n = pf.best_fit[0].__name__
+    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n = pf.best_fit.function.__name__
     assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
     assert f_n == "parabola_f", f"For 3 asymmetric points problem the best fit should be parabola, instead got {f_n}"
     
     # Test fitting of 4 points and number of suitable functions for it
     x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22]); pf = PeakFit1D(x, y); pf.find_best_fit()
-    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n_pos = pf.best_fit[0].__name__
+    n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n_pos = pf.best_fit.function.__name__
     assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
-    y = -y;  pf = PeakFit1D(x, y); pf.find_best_fit(); f_n_neg = pf.best_fit[0].__name__
+    y = -y;  pf = PeakFit1D(x, y); pf.find_best_fit(); f_n_neg = pf.best_fit.function.__name__
     assert f_n_pos == f_n_neg, f"Functions fitted for original and -1.0*original data should be the same, instead: {f_n_pos} and {f_n_neg}"
     
     # Testing stability of fitting

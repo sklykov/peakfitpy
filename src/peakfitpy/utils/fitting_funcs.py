@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Symbolic definitions of functions for fitting.
+Symbolic definitions of functions for fitting + associated properties calculation.
 
 @author: Sergei Klykov, @year: 2026, @license: MIT \n
 
@@ -28,7 +28,7 @@ full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_le
                 "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
                 "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
                 "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
-                "emg_f": "Exponentially Modified Gaussian PDF", "constant_f": "Constant Line"}
+                "emg_f": "Exp. Mod. Gaussian PDF", "constant_f": "Constant Line"}
 
 # Symmetric around the max / min functions
 symmetric_f_names = ("gaussian_f", "parabola_f", "gaussian_leveled_f", "lorentzian_f", "sech_f", "bump_f",

@@ -5,7 +5,7 @@ Main script with the class definition for peak fitting and retrieving properties
 @author: Sergei Klykov, @year: 2026, @license: MIT \n
 
 """
-# %% Global imports
+# %% Imports
 import random
 import warnings
 from collections.abc import Callable, Sequence
@@ -49,6 +49,7 @@ from .utils.fitting_funcs import (
     symmetric_f_names,
     tol,
 )
+from .utils.fitting_result import Fit1DResult, PeakResult
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -67,9 +68,9 @@ class PeakFit1D():
     """
 
     x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.floating[Any]]; y_norm: NDArray[np.floating[Any]]
-    x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum; all_fits: list
-    polynomials: tuple[str, ...]; best_fit: tuple | None; peak_params: tuple | None; best_fit_criteria: tuple[str, ...]
-    best_fit_criterion: str
+    x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum
+    polynomials: tuple[str, ...]; best_fit: Fit1DResult | None; best_fit_criteria: tuple[str, ...]
+    best_fit_criterion: str; all_fits: list[Fit1DResult]; peak: PeakResult | None
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -169,7 +170,7 @@ class PeakFit1D():
                           rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
         self.function_names = [n.__name__ for n in self.functions]
         self.function_params = {key: default_f_params[key].copy() for key in self.function_names if key in default_f_params}
-        self.best_fit = None; self.peak_params = None; self.all_fits = []; self.best_fit_criterion = ""
+        self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""
         self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
         # Define available best fit criteria - exclude or include "IC" based on sample size
         self.best_fit_criteria = ("RMSE", "MAE")
@@ -185,10 +186,17 @@ class PeakFit1D():
         """
         Fit in a loop functions for X, Y normalized data.
 
-        Note that the Callable best function is stored as self.best_fit[0]. Defined (fitted) function parameters - in self.best_fit[1].\n
-        Defined peak / valley: self.peak_params[0] - bool, flag that the position of peak can be defined,\n
-        self.peak_params[1] - bool, whatever it is the peak (max) or valley (min),\n
-        self.peak_params[2], self.peak_params[3] - (x, y) coordinates of defined peak / valley.
+        Note that fitting results stored as the dataclass in self.best_fit with attributes: 'function', 'params', 'pcov', 'perr', \n
+        'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
+        Meaning of attributes: 'function' - Callable function, 'params' - np.ndarray with fitted parameters, \n
+        'pcov' - returned by SciPy 'curve_fit' method 'pcov', 'perr' = np.sqrt(np.diag(pcov)) - estimation for each 'params' error, 
+        'rmse', 'mae' - calculated based on difference input Y - fitted_function(input X), 'aicc' - Corrected Akaike Information Criterion.\n
+        Defined peak / valley stored in the class attribute 'peak' (or 'self.peak') with the named attributes:, \n
+        peak.is_defined - bool with True if the extreme point has been found / exists; peak.is_peak - bool with True if it's a peak, \n
+        False - if it's valley and None if 'peak.is_defined' is False; peak.x and peak.y - coordinates of peak / valley if \n
+        'peak.is_defined' is True and None otherwise. \n
+        Note that params, pcov, perr, and PeakResult.x/y refer to the normalized fitting coordinates. \n
+        Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale.
 
         Parameters
         ----------
@@ -234,8 +242,11 @@ class PeakFit1D():
                                 coef = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef  # get coefficients 1*c + b*x^2 ...
                                 coef = np.pad(coef, (0, p + 1 - coef.size))  # pad operation is necessary, since coef can be trimmed
                                 fitted_f_params = coef[::-1]  # convert from c, b, a coefficients order to a, b, c
+                                pcov = None; perr = None  # default value for pcov parameter
                             else:
-                                fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params)[0]  # unrestrained fitting
+                                # unrestrained fitting for any function that doesn't provide the limits on its parameters
+                                fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
+                                perr = np.sqrt(np.diag(pcov))
                         else:
                             # Sampling-based lower width estimate intended to suppress poorly sampled, needle-like fitted peaks.
                             # It's based on FWHM * dx (dx = x_sampling)
@@ -249,71 +260,76 @@ class PeakFit1D():
                                     params[i] = self.x_sampling if params[i] < self.x_sampling else params[i]
                                     params[j] = self.x_sampling if params[j] < self.x_sampling else params[j]
                             # Below - restricted on parameters fitting using 'trf' method by default
-                            fitted_f_params = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)[0]
+                            fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
+                            perr = np.sqrt(np.diag(pcov))
                         y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
-                        diff_y = self.y_norm - y_f; rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
+                        diff_y = self.y_norm - y_f; rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y)); aicc = None
                         if len(self.best_fit_criteria) == 3:
-                            criteria = self.get_information_criteria(function, rmse)  # cannot return nan since all functions are implemented
-                            self.all_fits.append((function, fitted_f_params, rmse, mae, criteria))
-                        else:
-                            self.all_fits.append((function, fitted_f_params, rmse, mae))
+                            aicc = self.get_information_criteria(function, rmse)  # cannot return nan since all functions are implemented
+                        self.all_fits.append(Fit1DResult(function=function, params=fitted_f_params, pcov=pcov, perr=perr, rmse=rmse,
+                                                         mae=mae, aicc=aicc))  # storing all fitted parameters in a dataclass
                     except RuntimeError:
                         pass  # no successful fit found
         if len(self.all_fits) > 0:
             if selection_criteria in self.best_fit_criteria:
                 self.best_fit_criterion = selection_criteria
                 if self.best_fit_criterion == self.best_fit_criteria[0]:  # sort on the smallest RMSE
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x[2])
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
                 elif self.best_fit_criterion == self.best_fit_criteria[1]:  # sort on the smallest MAE
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x[3])
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x.mae)
                 # sort on Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
                 elif self.best_fit_criterion == self.best_fit_criteria[2]:
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x[4])
+                    self.all_fits = sorted(self.all_fits, key=lambda x: x.aicc)
             else:
                 __warn_mess = (f"\nInput Criteria {selection_criteria} not found among implemented / allowed {self.best_fit_criteria}."
                                + " Fallback to 'RMSE'")
                 warnings.warn(__warn_mess, stacklevel=2); self.best_fit_criterion = self.best_fit_criteria[0]
-                self.all_fits = sorted(self.all_fits, key=lambda x: x[2])
+                self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
             self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
-            self.peak_params = get_peak(self.best_fit[0], self.best_fit[1]); curve_fitted = True; peak_defined = self.peak_params[0]
+            curve_fitted = True; peak_params = get_peak(self.best_fit.function, self.best_fit.params); peak_defined = peak_params[0]
+            if peak_defined:
+                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=bool(peak_params[1]), 
+                                       x=float(peak_params[2]), y=float(peak_params[3]))
+            else:
+                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None)
             if verbose:
                 if self.best_fit_criterion == self.best_fit_criteria[0]:
-                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit[2], 6))
+                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
+                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
                 elif self.best_fit_criterion == self.best_fit_criteria[1]:
-                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit[3], 6))
+                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
+                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
                 elif self.best_fit_criterion == self.best_fit_criteria[2]:
-                    print("Best fit function:", full_f_names.get(self.best_fit[0].__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit[4], 3))
+                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
+                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))
             if plot_best_fit:
                 fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
                 if plot_norm_best_fit:
                     plt.figure(f"Best fit result - Normalized Values {fig_id}")
                     plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
-                    func_n = full_f_names.get(self.best_fit[0].__name__)
-                    plt.plot(x_plot_vals, self.best_fit[0](x_plot_vals, *self.best_fit[1]), lw=3.0, label=f"Fitted {func_n}")
-                    if self.peak_params[0]:
-                        pl = "Found Peak" if self.peak_params[1] else "Found Valley"
-                        plt.plot(self.peak_params[2], self.peak_params[3], "o", c='#45c70c', ms=9, label=pl)
+                    func_n = full_f_names.get(self.best_fit.function.__name__)
+                    plt.plot(x_plot_vals, self.best_fit.function(x_plot_vals, *self.best_fit.params), lw=3.0, label=f"Fitted {func_n}")
+                    if self.peak.is_defined:
+                        pl = "Found Peak" if self.peak.is_peak else "Found Valley"
+                        plt.plot(self.peak.x, self.peak.y, "o", c='#45c70c', ms=9, label=pl)
                     plt.legend(loc='best'); plt.tight_layout()
                 plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
                 plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values")
-                func_n = full_f_names.get(self.best_fit[0].__name__, ""); x_raw_scaled = self.denormalize_x(x_plot_vals)
+                func_n = full_f_names.get(self.best_fit.function.__name__, ""); x_raw_scaled = self.denormalize_x(x_plot_vals)
                 plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
-                if self.peak_params[0]:
-                    pl = "Found Peak" if self.peak_params[1] else "Found Valley"
+                if self.peak.is_defined:
+                    pl = "Found Peak" if self.peak.is_peak else "Found Valley"
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
         else:
-            __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"; warnings.warn(__warn_m, stacklevel=2)
-            self.best_fit = None; self.peak_params = None  # store that there is no best_fit function found
+            __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"
+            warnings.warn(__warn_m, stacklevel=2); self.best_fit = None; self.peak = None  # store that there is no best_fit found
             self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
         return curve_fitted, peak_defined
 
     def get_peak_values(self, original: bool = True) -> tuple[bool, float, float] | tuple[None, None, None]:
         """
-        Return in a tuple x, y coordinates if the peak has been defined.
+        Return in a tuple the flag if it is peak, x, y coordinates if the peak has been defined.
 
         Parameters
         ----------
@@ -328,11 +344,11 @@ class PeakFit1D():
             coordinates of a defined peak x, y or None for all values if fitting hasn't been done or peak cannot be defined.
 
         """
-        if self.best_fit is not None and self.peak_params is not None and self.peak_params[0]:
+        if self.best_fit is not None and self.peak is not None and self.peak.is_defined:
             if original:
-                return self.peak_params[1], self.denormalize_x(self.peak_params[2]), self.denormalize_y(self.peak_params[3])
+                return self.peak.is_peak, self.denormalize_x(self.peak.x), self.denormalize_y(self.peak.y)
             else:
-                return self.peak_params[1], self.peak_params[2], self.peak_params[3]
+                return self.peak.is_peak, self.peak.x, self.peak.y
         else:
             return None, None, None
 
@@ -521,7 +537,7 @@ class PeakFit1D():
 
         """
         if self.best_fit is not None:
-            return self.denormalize_y(self.best_fit[0](self.normalize_x(x), *self.best_fit[1]))
+            return self.denormalize_y(self.best_fit.function(self.normalize_x(x), *self.best_fit.params))
         else:
             __warn_m = "\nThere are no fitted function (curve) stored for calculation"; warnings.warn(__warn_m, stacklevel=2)
             return None
