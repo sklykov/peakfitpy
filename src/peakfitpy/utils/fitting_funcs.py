@@ -878,6 +878,7 @@ params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max
                      "moffat_f": ([-np.inf, x_min, tol, 0.5, d_min], [np.inf, x_max, w_max_moffat, 10.0, d_max]),
                      "sinc_sq_f": ([-np.inf, 0.0, tol, d_min], [np.inf, 1.0, w_sinc_sq, d_max]),
                      "emg_f": ([-np.inf, x_min, tol, tol, d_min], [np.inf, x_max, w_emg_g, w_emg_tau, d_max]),
+                     "constant_f": ([0.0], [1.0]),
                      }
 
 # Define the index of width min parameter to correct for using the actual sampling estimation

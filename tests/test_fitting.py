@@ -57,7 +57,8 @@ def test_basic_fitting():
     # Test excluding lines as polynomials from fitting
     x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
     pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit(exclude_funcs=PeakFit1D.polynomials)
-    assert best_fit is None and peak is None, "Lines should be excluded from fitting"
+    condition = best_fit is not None and best_fit.function.__name__ == "constant_f" and not peak.is_defined
+    assert condition, "Constant Line should be fitted - not counted as polynomial"
     
     # Test fitting of 3 points and number of suitable functions for it
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.find_best_fit()

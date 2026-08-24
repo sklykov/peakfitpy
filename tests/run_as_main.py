@@ -14,7 +14,7 @@ plot_all_curves_with_defaults = True  # for checking default parameters consiste
 test_simple_case = False  # common manual test - well-defined peak
 test_not_implemented_f = False  # Test not implemented function what should be still fitted
 test_line = False  # edge case - 2 points 
-test_exclude_line = False  # check that lines are excluded
+test_exclude_line = True  # check that lines are excluded
 test_noisy_parabola = False  # not transferred to the test_fitting, just checking the fit
 test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with a peak
 test_4_points_peak = False
@@ -61,6 +61,7 @@ if __name__ == "__main__":
     if test_exclude_line:
         x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
         pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit(exclude_funcs=PeakFit1D.polynomials)
+        print(best_fit, peak)
          
     # Test that only limited amount of functions can be fitted to 3 points only
     if test_smallest_points_valley:

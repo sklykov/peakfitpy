@@ -186,22 +186,22 @@ class PeakFit1D():
                       selection_criteria: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
                       exclude_funcs: tuple[Callable, ...] | None = None) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
         """
-        Fit in a loop functions for X, Y normalized data.
+        Fit in a loop candidate functions for X, Y normalized data and select the best fit.
 
         Note that fitting results stored as the dataclass 'Fit1DResult' in self.best_fit with attributes: 'function', 'params', 'pcov', \n
         'perr', 'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
         Meaning of attributes: 'function' - Callable function, 'params' - np.ndarray with fitted parameters, \n
         'pcov' - returned by SciPy 'curve_fit' method 'pcov', 'perr' = np.sqrt(np.diag(pcov)) - estimation for each 'params' error, 
         'rmse', 'mae' - calculated based on difference input Y - fitted_function(input X), 'aicc' - Corrected Akaike Information Criterion.\n
-        Defined peak / valley stored in the class attribute 'peak' (or 'self.peak') with the named attributes:, \n
+        Defined peak / valley stored in the class attribute 'peak' (or 'self.peak') with the named attributes: \n
         peak.is_defined - bool with True if the extreme point has been found / exists; peak.is_peak - bool with True if it's a peak, \n
         False - if it's valley and None if 'peak.is_defined' is False; peak.x and peak.y - coordinates of peak / valley if \n
         'peak.is_defined' is True and None otherwise. \n
         Note that params, pcov, perr, and PeakResult.x/y refer to the normalized fitting coordinates. \n
         Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale. \n 
         All names of supported functions available in the class attribute PeakFit1D.function_names and as Callable functions in \n
-        PeakFit1D.functions. They can used as provided Callables to either 'include_funcs', or 'exclude_funcs'. \n
-        If both 'include_funcs' and 'exclude_funcs' will be provided as not None, then ValueError will be thrown.
+        PeakFit1D.functions. They can be used as provided Callables to either 'include_funcs', or 'exclude_funcs'. \n
+        If both 'include_funcs' and 'exclude_funcs' are provided as not None, then ValueError will be thrown.
 
         Parameters
         ----------
@@ -210,7 +210,7 @@ class PeakFit1D():
         plot_best_fit : bool, optional
             Flag for plotting found curve + peak if defined. The default is False.
         plot_norm_best_fit : bool, optional
-            Flag for plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
+            Flag for optional plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
             It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
             The default is False.
         selection_criteria : str, optional
@@ -219,7 +219,8 @@ class PeakFit1D():
             Note that "IC" is available only when AICc is defined for every candidate model: n > max(k) + 1, \n
             where k is the number of fitted curve parameters + 1 for the estimated residual variance (currently n >= 8).
         include_funcs : tuple[Callable, ...] | None, optional
-            Tuple with Callable functions for fitting. If None provided, then will return all defined functions. The default is None.
+            Tuple with Callable functions for fitting. If both 'include_funcs' and 'exclude_funcs' are None, then \n
+            all supported functions are used. The default is None.
         exclude_funcs : tuple[Callable, ...] | None, optional
             Tuple with Callable functions that should be excluded from fitting. E.g., PeakFit1D.polynomials can be used. The default is None.
 
@@ -228,7 +229,7 @@ class PeakFit1D():
         tuple[Fit1DResult, PeakResult] | tuple[None, None]
             1st dataclass (Fit1DResult) contain best fit function result, 2nd - peak searching result. \n
             Check the docstring for classes' attributes. tuple[None, None] will be returned if no best fit found \n
-            and the previous fitting was unsucessful. Otherwise, previous best fit and peak results will be returned.
+            and the previous fitting was unsuccessful. Otherwise, previous best fit and peak results will be returned.
         
         """
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
@@ -331,7 +332,7 @@ class PeakFit1D():
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
         elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
-            __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"
+            __warn_m = "\nNo curves could be fitted for the provided values. Previous fits retained."
             warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
         return self.best_fit, self.peak
 
@@ -383,14 +384,13 @@ class PeakFit1D():
             If both include_funcs and exclude_funcs are not None.
             
         """
-        if include_funcs is None and exclude_funcs is None:  # by default - fitting all functions
-            return self.functions
-        elif include_funcs is not None and exclude_funcs is not None:
-            raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambigious")
-        elif include_funcs is not None: 
+        if include_funcs is not None and exclude_funcs is not None:
+            raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambiguous")
+        if include_funcs is not None: 
             return tuple(f for f in include_funcs if f in self.functions)
-        elif exclude_funcs is not None:
-            return tuple(f for f in exclude_funcs if f not in self.functions)
+        if exclude_funcs is not None:
+            return tuple(f for f in self.functions if f not in exclude_funcs)
+        return self.functions  # by default - fitting all functions
 
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f'):
