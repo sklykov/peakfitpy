@@ -69,8 +69,14 @@ class PeakFit1D():
 
     x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.floating[Any]]; y_norm: NDArray[np.floating[Any]]
     x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum
-    polynomials: tuple[str, ...]; best_fit: Fit1DResult | None; best_fit_criteria: tuple[str, ...]
-    best_fit_criterion: str; all_fits: list[Fit1DResult]; peak: PeakResult | None
+    best_fit: Fit1DResult | None; best_fit_criteria: tuple[str, ...]; peak: PeakResult | None
+    best_fit_criterion: str; all_fits: list[Fit1DResult]
+    functions: tuple[Callable, ...] = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f,
+                                       logistic_derivative_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
+                                       rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
+    function_names: tuple[str, ...] = tuple(f.__name__ for f in functions)  # uses internally generator expression
+    polynomial_names: tuple[str, ...] = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
+    polynomials: tuple[Callable, ...] = (parabola_f, cubic_polynomial, quartic_polynomial, line_f)
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -164,14 +170,9 @@ class PeakFit1D():
             self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
         else:
             raise ValueError("\nProvided values are identical (constant)")
-        # Available functions report
-        self.functions = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f,
-                          logistic_derivative_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
-                          rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
-        self.function_names = [n.__name__ for n in self.functions]
-        self.function_params = {key: default_f_params[key].copy() for key in self.function_names if key in default_f_params}
+        # Initialize class instance variables
+        self.function_params = {name: default_f_params[name].copy() for name in self.function_names}  # fail if no default param-s for a f()
         self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""
-        self.polynomials = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
         # Define available best fit criteria - exclude or include "IC" based on sample size
         self.best_fit_criteria = ("RMSE", "MAE")
         generator = (len(params) for params in default_f_params.values())  # Generator expression
@@ -182,12 +183,13 @@ class PeakFit1D():
 
     # %% Fitting
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
-                      selection_criteria: str = "RMSE") -> tuple[bool, bool]:
+                      selection_criteria: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
+                      exclude_funcs: tuple[Callable, ...] | None = None) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
         """
         Fit in a loop functions for X, Y normalized data.
 
-        Note that fitting results stored as the dataclass in self.best_fit with attributes: 'function', 'params', 'pcov', 'perr', \n
-        'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
+        Note that fitting results stored as the dataclass 'Fit1DResult' in self.best_fit with attributes: 'function', 'params', 'pcov', \n
+        'perr', 'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
         Meaning of attributes: 'function' - Callable function, 'params' - np.ndarray with fitted parameters, \n
         'pcov' - returned by SciPy 'curve_fit' method 'pcov', 'perr' = np.sqrt(np.diag(pcov)) - estimation for each 'params' error, 
         'rmse', 'mae' - calculated based on difference input Y - fitted_function(input X), 'aicc' - Corrected Akaike Information Criterion.\n
@@ -196,7 +198,10 @@ class PeakFit1D():
         False - if it's valley and None if 'peak.is_defined' is False; peak.x and peak.y - coordinates of peak / valley if \n
         'peak.is_defined' is True and None otherwise. \n
         Note that params, pcov, perr, and PeakResult.x/y refer to the normalized fitting coordinates. \n
-        Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale.
+        Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale. \n 
+        All names of supported functions available in the class attribute PeakFit1D.function_names and as Callable functions in \n
+        PeakFit1D.functions. They can used as provided Callables to either 'include_funcs', or 'exclude_funcs'. \n
+        If both 'include_funcs' and 'exclude_funcs' will be provided as not None, then ValueError will be thrown.
 
         Parameters
         ----------
@@ -213,22 +218,26 @@ class PeakFit1D():
             "IC" stands for "Information Criteria". The default is "RMSE" (universally computable value).\n
             Note that "IC" is available only when AICc is defined for every candidate model: n > max(k) + 1, \n
             where k is the number of fitted curve parameters + 1 for the estimated residual variance (currently n >= 8).
+        include_funcs : tuple[Callable, ...] | None, optional
+            Tuple with Callable functions for fitting. If None provided, then will return all defined functions. The default is None.
+        exclude_funcs : tuple[Callable, ...] | None, optional
+            Tuple with Callable functions that should be excluded from fitting. E.g., PeakFit1D.polynomials can be used. The default is None.
 
         Returns
         -------
-        bool
-            True if some predefined curve is fitted.
-        bool
-            True if peak / valley (max or min Y values) can be defined.
-
+        tuple[Fit1DResult, PeakResult] | tuple[None, None]
+            1st dataclass (Fit1DResult) contain best fit function result, 2nd - peak searching result. \n
+            Check the docstring for classes' attributes. tuple[None, None] will be returned if no best fit found \n
+            and the previous fitting was unsucessful. Otherwise, previous best fit and peak results will be returned.
+        
         """
-        curve_fitted = False; peak_defined = False  # default return values
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
         previous_criteria = self.best_fit_criterion; self.best_fit_criterion = ""
+        functions4fitting = self._get_fitting_funcs(include_funcs, exclude_funcs)
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
             # Fitting loop
-            for function in self.functions:
+            for function in functions4fitting:
                 f_name = function.__name__  # string form of the function name
                 params = self.function_params[f_name].copy()  # used default starting fitting parameters (centered peaks)
                 # get the boundaries for fitting parameters for both ranges
@@ -237,7 +246,7 @@ class PeakFit1D():
                 if params_len <= self.x_norm.shape[0]:  # X values should be
                     try:
                         if params_limits is None:
-                            if f_name in self.polynomials:  # polynomials are fitted without any parameters restriction
+                            if f_name in self.polynomial_names:  # polynomials are fitted without any parameters restriction
                                 p = len(default_f_params[f_name]) - 1  # degree of polynomial
                                 coef = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef  # get coefficients 1*c + b*x^2 ...
                                 coef = np.pad(coef, (0, p + 1 - coef.size))  # pad operation is necessary, since coef can be trimmed
@@ -286,8 +295,8 @@ class PeakFit1D():
                 warnings.warn(__warn_mess, stacklevel=2); self.best_fit_criterion = self.best_fit_criteria[0]
                 self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
             self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
-            curve_fitted = True; peak_params = get_peak(self.best_fit.function, self.best_fit.params); peak_defined = peak_params[0]
-            if peak_defined:
+            peak_params = get_peak(self.best_fit.function, self.best_fit.params)
+            if peak_params[0]:
                 self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=bool(peak_params[1]), 
                                        x=float(peak_params[2]), y=float(peak_params[3]))
             else:
@@ -321,11 +330,10 @@ class PeakFit1D():
                     pl = "Found Peak" if self.peak.is_peak else "Found Valley"
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
                 plt.legend(loc='best'); plt.tight_layout()
-        else:
+        elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
             __warn_m = "\nThere are no curve fitted for the provided values. Previous fits retained"
-            warnings.warn(__warn_m, stacklevel=2); self.best_fit = None; self.peak = None  # store that there is no best_fit found
-            self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
-        return curve_fitted, peak_defined
+            warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
+        return self.best_fit, self.peak
 
     def get_peak_values(self, original: bool = True) -> tuple[bool, float, float] | tuple[None, None, None]:
         """
@@ -351,6 +359,38 @@ class PeakFit1D():
                 return self.peak.is_peak, self.peak.x, self.peak.y
         else:
             return None, None, None
+    
+    def _get_fitting_funcs(self, include_funcs: tuple[Callable, ...] | None = None, 
+                           exclude_funcs: tuple[Callable, ...] | None = None) -> tuple[Callable, ...]:
+        """
+        Filter out the fitting functions based on provided inputs.
+
+        Parameters
+        ----------
+        include_funcs : tuple[Callable, ...] | None, optional
+            Tuple with Callable functions for fitting. If None provided, then will return all defined functions. The default is None.
+        exclude_funcs : tuple[Callable, ...] | None, optional
+            Tuple with Callable functions that should be excluded from fitting. The default is None.
+
+        Returns
+        -------
+        tuple[Callable, ...]
+            Tuple with Callable functions for fitting.
+
+        Raises
+        ------
+        ValueError
+            If both include_funcs and exclude_funcs are not None.
+            
+        """
+        if include_funcs is None and exclude_funcs is None:  # by default - fitting all functions
+            return self.functions
+        elif include_funcs is not None and exclude_funcs is not None:
+            raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambigious")
+        elif include_funcs is not None: 
+            return tuple(f for f in include_funcs if f in self.functions)
+        elif exclude_funcs is not None:
+            return tuple(f for f in exclude_funcs if f not in self.functions)
 
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f'):

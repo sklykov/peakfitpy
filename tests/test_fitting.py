@@ -48,10 +48,16 @@ def test_basic_fitting():
     
     # Test line fitting as fallback, baseline fitting
     x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
-    pf = PeakFit1D(x, y); curve_fitted, peak_defined = pf.find_best_fit(); f_n = pf.best_fit.function.__name__
-    assert curve_fitted and not peak_defined, f"Curve should be fitted: {curve_fitted}, peak not defined or False: {peak_defined}"
+    pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit()
+    assert best_fit is not None and peak is not None and not peak.is_defined, "Some curve should be fitted and peak shold be not defined"
+    f_n = pf.best_fit.function.__name__
     assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"
     assert len(pf.all_fits) == 2, f"Only 2 lines can be fitted to only 2 points but fitted: {len(pf.all_fits)}"
+    
+    # Test excluding lines as polynomials from fitting
+    x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
+    pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit(exclude_funcs=PeakFit1D.polynomials)
+    assert best_fit is None and peak is None, "Lines should be excluded from fitting"
     
     # Test fitting of 3 points and number of suitable functions for it
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.find_best_fit()
