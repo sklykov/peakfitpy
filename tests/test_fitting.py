@@ -10,7 +10,7 @@ Test the fitting for different scenarios of PeakFit1D.
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, lorentzian_f
+from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, lorentzian_f, bump_f, gaussian_leveled_f, line_f, moffat_f
 
 
 def test_basic_fitting():
@@ -93,12 +93,35 @@ def test_basic_fitting():
     
     # Test robustness against inversion and shuffling of input data
     x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]
-    y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2)
+    y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2, seed=101)
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_d, xp_d, yp_d = pf.get_peak_values()
     x = x[::-1]; y = y[::-1]  # inverse order
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_inv, xp_inv, yp_inv = pf.get_peak_values()
     assert not is_peak_d and not is_peak_inv and np.isclose(xp_d, xp_inv) and np.isclose(yp_d, yp_inv), "Inversion of X and Y data failure"
-    rng = np.random.default_rng(); shuffled_indices = rng.permutation(x.shape[0])
+    rng = np.random.default_rng(seed=250); shuffled_indices = rng.permutation(x.shape[0])
     x = x[shuffled_indices]; y = y[shuffled_indices]  # shuffling of the data
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
-    assert not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv) and np.isclose(yp_shf, yp_inv), "Shuffling of X and Y data failure"  
+    assert not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv) and np.isclose(yp_shf, yp_inv), "Shuffling of X and Y data failure" 
+    
+    
+def test_fitting_features():
+    """
+    Test features of fitting loop.
+
+    Returns
+    -------
+    None
+    
+    """
+    # Test needle spikes filtering and resolving criterion
+    rng = np.random.default_rng(57)
+    x = np.linspace(start=-2.5, stop=1.5, num=42)
+    y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
+    pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True, 
+                                                          include_funcs=(bump_f, gaussian_leveled_f, line_f, lorentzian_f))
+    assert fit_res_np_l[0].function.__name__ == "line_f", "Line should be fitted to the data with single outlier"
+    # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
+    y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
+    pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f),
+                                                           selection_criterion="IC")
+    assert fit_res_np_lp[0].function.__name__ == "gaussian_f", "5 points formed a peak that should be fitted as Gaussian function"

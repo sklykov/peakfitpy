@@ -182,8 +182,9 @@ class PeakFit1D():
 
     # %% Fitting
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
-                      selection_criteria: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
-                      exclude_funcs: tuple[Callable, ...] | None = None) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
+                      selection_criterion: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
+                      exclude_funcs: tuple[Callable, ...] | None = None, 
+                      filter_spikes: bool = False) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
         """
         Fit in a loop candidate functions for X, Y normalized data and select the best fit.
 
@@ -212,7 +213,7 @@ class PeakFit1D():
             Flag for optional plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
             It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
             The default is False.
-        selection_criteria : str, optional
+        selection_criterion : str, optional
             Criteria for selection of the best fit. Available: "RMSE", "MAE", "IC" (mix of RMSE + minimal function flexibility). \n
             "IC" stands for "Information Criteria". The default is "RMSE" (universally computable value).\n
             Note that "IC" is available only when AICc is defined for every candidate model: n > max(k) + 1, \n
@@ -279,21 +280,22 @@ class PeakFit1D():
                                                          mae=mae, aicc=aicc))  # storing all fitted parameters in a dataclass
                     except RuntimeError:
                         pass  # no successful fit found
+        if len(self.all_fits) > 0 and filter_spikes:
+            self.filter_undersampled_peaks(verbose)
+        # Get the best fit after fitting loop and additional spike (needle-like) filtering
         if len(self.all_fits) > 0:
-            if selection_criteria in self.best_fit_criteria:
-                self.best_fit_criterion = selection_criteria
-                if self.best_fit_criterion == self.best_fit_criteria[0]:  # sort on the smallest RMSE
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
-                elif self.best_fit_criterion == self.best_fit_criteria[1]:  # sort on the smallest MAE
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x.mae)
-                # sort on Information Criteria - balanced value between smallest RMSE and lower number of required function parameters
-                elif self.best_fit_criterion == self.best_fit_criteria[2]:
-                    self.all_fits = sorted(self.all_fits, key=lambda x: x.aicc)
+            if selection_criterion in self.best_fit_criteria:
+                self.best_fit_criterion = selection_criterion
             else:
-                __warn_mess = (f"\nInput Criteria {selection_criteria} not found among implemented / allowed {self.best_fit_criteria}."
-                               + " Fallback to 'RMSE'")
-                warnings.warn(__warn_mess, stacklevel=2); self.best_fit_criterion = self.best_fit_criteria[0]
-                self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
+                warnings.warn((f"\nInput criterion '{selection_criterion}' not found among allowed {self.best_fit_criteria}."
+                               + "Fallback to 'RMSE'"), stacklevel=2)
+                self.best_fit_criterion = "RMSE"
+            if self.best_fit_criterion == "RMSE":
+                self.all_fits.sort(key=lambda x: x.rmse)
+            elif self.best_fit_criterion == "MAE":
+                self.all_fits.sort(key=lambda x: x.mae)
+            elif self.best_fit_criterion == "IC":
+                self.all_fits.sort(key=lambda x: x.aicc)
             self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
             peak_params = get_peak(self.best_fit.function, self.best_fit.params); best_f_name = self.best_fit.function.__name__
             if peak_params[0]:
@@ -403,6 +405,50 @@ class PeakFit1D():
             self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
             return selected_funcs
         return self.functions  # by default - fitting all functions
+    
+    def filter_undersampled_peaks(self, verbose: bool = False):
+        """
+        Filter out badly resolved, sharp or needle-like peaks that can be fitted to the outliers in the input data.
+
+        Parameters
+        ----------
+        verbose : bool, optional
+            Flag for verbose printouts. The default is False.
+
+        Returns
+        -------
+        None
+        
+        """
+        if len(self.all_fits) > 0:
+            filtered_fits = []
+            for fit_res in self.all_fits:
+                f_name = fit_res.function.__name__
+                if f_name in funcs_with_fwhm:
+                    peak_params = get_peak(fit_res.function, fit_res.params)
+                    if peak_params[0]:  # peak / valley defined
+                        fwhm = get_fwhm_generic(f_name, fit_res.params)
+                        xa = peak_params[2] - 0.75*fwhm; xb = peak_params[2] + 0.75*fwhm  # approximate peak width by 1.5*FWHM
+                        points_under_peak_mask = (self.x_norm >= xa) & (self.x_norm <= xb)
+                        if np.count_nonzero(points_under_peak_mask) >= 3:  # so, there are at least 3 points within approximated peak
+                            x_filt = self.x_norm[points_under_peak_mask]; y_filt = self.y_norm[points_under_peak_mask]
+                            rmse_p = np.sqrt(np.mean((fit_res.function(x_filt, *fit_res.params) - y_filt)**2))
+                            if fit_res.rmse > 0.0:
+                                ratio = round((rmse_p / fit_res.rmse), 2) 
+                            else:
+                                ratio = np.inf
+                            if ratio < 2.05:  # So, RMSE under the peak isn't worse than ...% of total RMSE
+                                filtered_fits.append(fit_res)
+                            elif verbose:
+                                print((f"Function '{f_name}' filtered out from 'all_fits' because its RMSE under peak "
+                                       + f"much worse than total fit RMSE (their ratio: {ratio} > 2.05)"), flush=True)
+                    else:
+                        filtered_fits.append(fit_res)  # no peak found for the function that assumes it - for fallback
+                else:
+                    filtered_fits.append(fit_res)
+            self.all_fits = filtered_fits
+            if verbose and len(self.all_fits) == 0:
+                print("All fitted functions are filtered out", flush=True)
 
     # %% Plotting
     def plot_norm(self, f_name: str='gaussian_f'):

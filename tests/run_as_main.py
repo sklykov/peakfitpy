@@ -8,7 +8,8 @@ Run some tests for peakfitpy library directly in this script without pytest usag
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, gaussian_leveled_f, lorentzian_f, parabola_f
+from peakfitpy.utils.fitting_funcs import (bump_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, lorentzian_f,
+                                           moffat_f, parabola_f)
 
 plot_all_curves_with_defaults = True  # for checking default parameters consistency
 test_simple_case = False  # common manual test - well-defined peak
@@ -21,7 +22,7 @@ test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
 test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = True  # tests the sorting of input X and Y data during initialization
-test_needle_spike = True
+test_needle_spike = True  # test filtering out needle-like peak and criterion to filter it out
 
 
 # %% Only for development purposes
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     if test_pure_noise:
         x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
         y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
-        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criteria="IC"); is_peak, xp, yp = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
         if is_peak is not None:
             print("X peak within X range:", 0.0 < xp < 1.0, 
                   "\nY peak within min - max dataset values (no needle-like):", 0.85*y.min() <= yp <= 1.15*y.max())
@@ -93,24 +94,37 @@ if __name__ == "__main__":
     if test_sorting:
         x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]
         y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2)
-        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criteria="IC"); is_peak_d, xp_d, yp_d = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criterion="IC"); is_peak_d, xp_d, yp_d = pf.get_peak_values()
         x = x[::-1]; y = y[::-1]  # inverse order
-        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criteria="IC"); is_peak_inv, xp_inv, yp_inv = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(selection_criterion="IC"); is_peak_inv, xp_inv, yp_inv = pf.get_peak_values()
         print("Inversion has no effect on fit:", not is_peak_d and not is_peak_inv and np.isclose(xp_d, xp_inv) and np.isclose(yp_d, yp_inv))
         rng = np.random.default_rng()
         shuffled_indices = rng.permutation(x.shape[0])
         x = x[shuffled_indices]; y = y[shuffled_indices]
-        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criteria="IC"); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criterion="IC"); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
         print("Shuffling Data has no effect on fit:", not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv)
               and np.isclose(yp_shf, yp_inv))
     
     # Check FWHM limitation for preventing needle spikes
     if test_needle_spike:
         rng = np.random.default_rng(33)
-        x = np.linspace(start=-2.5, stop=1.5, num=61)
+        x = np.linspace(start=-2.5, stop=1.5, num=41)
         y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
-        pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(lorentzian_f, ))
-        # Make the peak not needle like, allow 2 and 3 points nearby => not "needle-like" peak
-        y[y.shape[0]//2 - 7] = 11.0
-        pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(lorentzian_f,))
-        fit_res_np_gp = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(gaussian_leveled_f,))
+        pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(verbose=True, plot_best_fit=True, filter_spikes=True, 
+                                                              include_funcs=(bump_f, gaussian_leveled_f, line_f))
+        # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
+        y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
+        pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(lorentzian_f, gaussian_f),
+                                                               filter_spikes=True)
+        # Test case transfer without plotting
+        rng = np.random.default_rng(57)
+        x = np.linspace(start=-2.5, stop=1.5, num=42)
+        y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
+        pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True, 
+                                                              include_funcs=(bump_f, gaussian_leveled_f, line_f, lorentzian_f))
+        assert fit_res_np_l[0].function.__name__ == "line_f"
+        # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
+        y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
+        pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f),
+                                                               selection_criterion="IC")
+        assert fit_res_np_lp[0].function.__name__ == "gaussian_f"
