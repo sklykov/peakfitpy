@@ -38,3 +38,4 @@ class PeakResult():
     is_peak: bool | None
     x: float | None
     y: float | None
+    fwhm: float | None

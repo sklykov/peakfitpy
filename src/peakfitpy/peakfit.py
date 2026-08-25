@@ -28,10 +28,12 @@ from .utils.fitting_funcs import (
     default_f_params,
     emg_f,
     full_f_names,
+    funcs_with_fwhm,
     gaussian_f,
     gaussian_leveled_f,
     generalized_gaussian_f,
     generic_f_names,
+    get_fwhm_generic,
     get_peak,
     laplace_pdf_f,
     line_f,
@@ -70,13 +72,13 @@ class PeakFit1D():
     x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.floating[Any]]; y_norm: NDArray[np.floating[Any]]
     x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum
     best_fit: Fit1DResult | None; best_fit_criteria: tuple[str, ...]; peak: PeakResult | None
-    best_fit_criterion: str; all_fits: list[Fit1DResult]
+    best_fit_criterion: str; all_fits: list[Fit1DResult]; selected_funcs: tuple[Callable, ...]
     functions: tuple[Callable, ...] = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f,
                                        logistic_derivative_f, rayleigh_pdf_f, laplace_pdf_f, cubic_polynomial, quartic_polynomial,
                                        rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f, emg_f, constant_f)
     function_names: tuple[str, ...] = tuple(f.__name__ for f in functions)  # uses internally generator expression
-    polynomial_names: tuple[str, ...] = (parabola_f.__name__, cubic_polynomial.__name__, quartic_polynomial.__name__, line_f.__name__)
     polynomials: tuple[Callable, ...] = (parabola_f, cubic_polynomial, quartic_polynomial, line_f)
+    polynomial_names: tuple[str, ...] = tuple(f.__name__ for f in polynomials)
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -172,14 +174,11 @@ class PeakFit1D():
             raise ValueError("\nProvided values are identical (constant)")
         # Initialize class instance variables
         self.function_params = {name: default_f_params[name].copy() for name in self.function_names}  # fail if no default param-s for a f()
-        self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""
+        self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""; self.selected_funcs = ()
         # Define available best fit criteria - exclude or include "IC" based on sample size
-        self.best_fit_criteria = ("RMSE", "MAE")
         generator = (len(params) for params in default_f_params.values())  # Generator expression
         max_k = max(generator) + 1  # using Generator should evaluate the max iteratively
-        if len(self.x_norm) > max_k + 1:
-            self.best_fit_criteria = ("RMSE", "MAE", "IC")
-
+        self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
 
     # %% Fitting
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
@@ -234,17 +233,17 @@ class PeakFit1D():
         """
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
         previous_criteria = self.best_fit_criterion; self.best_fit_criterion = ""
-        functions4fitting = self._get_fitting_funcs(include_funcs, exclude_funcs)
+        self.selected_funcs = self._get_fitting_funcs(include_funcs, exclude_funcs)
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='Covariance of the parameters could not be estimated')  # ignore warnings in a search
             # Fitting loop
-            for function in functions4fitting:
+            for function in self.selected_funcs:
                 f_name = function.__name__  # string form of the function name
                 params = self.function_params[f_name].copy()  # used default starting fitting parameters (centered peaks)
                 # get the boundaries for fitting parameters for both ranges
                 params_limits = deepcopy(params_boundaries.get(f_name, None))
                 params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
-                if params_len <= self.x_norm.shape[0]:  # X values should be
+                if params_len <= self.x_norm.shape[0]:  # X values should be not exceeding number of function parameters
                     try:
                         if params_limits is None:
                             if f_name in self.polynomial_names:  # polynomials are fitted without any parameters restriction
@@ -259,11 +258,11 @@ class PeakFit1D():
                                 perr = np.sqrt(np.diag(pcov))
                         else:
                             # Sampling-based lower width estimate intended to suppress poorly sampled, needle-like fitted peaks.
-                            # It's based on FWHM * dx (dx = x_sampling)
+                            # It's based on max FWHM * dx * 1.5 (dx = x_sampling), so ~ 3 points should lay within peak
                             if f_name in params_w_min_index:
                                 index = params_w_min_index.get(f_name, None)
                                 if isinstance(index, int):
-                                    params_limits[0][index] = self.x_sampling*params_limits[1][index]  # Effectively, sampling * Max width
+                                    params_limits[0][index] = 1.5*self.x_sampling*params_limits[1][index]
                                     params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
                                 elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
                                     i, j = index; params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
@@ -296,12 +295,13 @@ class PeakFit1D():
                 warnings.warn(__warn_mess, stacklevel=2); self.best_fit_criterion = self.best_fit_criteria[0]
                 self.all_fits = sorted(self.all_fits, key=lambda x: x.rmse)
             self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
-            peak_params = get_peak(self.best_fit.function, self.best_fit.params)
+            peak_params = get_peak(self.best_fit.function, self.best_fit.params); best_f_name = self.best_fit.function.__name__
             if peak_params[0]:
+                fwhm = get_fwhm_generic(best_f_name, self.best_fit.params) if best_f_name in funcs_with_fwhm else None
                 self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=bool(peak_params[1]), 
-                                       x=float(peak_params[2]), y=float(peak_params[3]))
+                                       x=float(peak_params[2]), y=float(peak_params[3]), fwhm=fwhm)
             else:
-                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None)
+                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None, fwhm=None)
             if verbose:
                 if self.best_fit_criterion == self.best_fit_criteria[0]:
                     print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
@@ -334,6 +334,11 @@ class PeakFit1D():
         elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
             __warn_m = "\nNo curves could be fitted for the provided values. Previous fits retained."
             warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
+        else:
+            __warn_m = "\nNo curves could be fitted for the provided values."; warnings.warn(__warn_m, stacklevel=2)
+        if len(self.all_fits) == 0 and len(self.selected_funcs) != len(PeakFit1D.functions) and verbose:
+            sel_f_names = [f.__name__ for f in self.selected_funcs]
+            print("\nSelected functions for fitting that have not been fitted:", sel_f_names)
         return self.best_fit, self.peak
 
     def get_peak_values(self, original: bool = True) -> tuple[bool, float, float] | tuple[None, None, None]:
@@ -369,7 +374,8 @@ class PeakFit1D():
         Parameters
         ----------
         include_funcs : tuple[Callable, ...] | None, optional
-            Tuple with Callable functions for fitting. If None provided, then will return all defined functions. The default is None.
+            Tuple with Callable functions for fitting. If both 'include_funcs' and 'exclude_funcs' are None, \n
+            all supported functions are used. The default is None.
         exclude_funcs : tuple[Callable, ...] | None, optional
             Tuple with Callable functions that should be excluded from fitting. The default is None.
 
@@ -387,9 +393,15 @@ class PeakFit1D():
         if include_funcs is not None and exclude_funcs is not None:
             raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambiguous")
         if include_funcs is not None: 
-            return tuple(f for f in include_funcs if f in self.functions)
+            selected_funcs = tuple(f for f in include_funcs if f in self.functions)
+            max_k = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
+            self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
+            return selected_funcs
         if exclude_funcs is not None:
-            return tuple(f for f in self.functions if f not in exclude_funcs)
+            selected_funcs = tuple(f for f in self.functions if f not in exclude_funcs)
+            max_k = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
+            self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
+            return selected_funcs
         return self.functions  # by default - fitting all functions
 
     # %% Plotting
@@ -610,7 +622,7 @@ class PeakFit1D():
         if f.__name__ in default_f_params:
             n = self.x_norm.shape[0]; k = len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
-                rmse = 1e-6  # clamp RMSE to the smallest meaningful value used for also in fitting_funcs.py
+                rmse = 1e-6  # clamp RMSE to the smallest meaningful value used for also in the fitting_funcs.py
             # get AICc or BIC
             if ic_type == "aicc":
                 if n > k + 1:

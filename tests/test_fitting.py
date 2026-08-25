@@ -75,12 +75,13 @@ def test_basic_fitting():
     
     # Testing stability of fitting
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
-    noise_fractions = [25e-3, 5e-2, 75e-3, 85e-3, 1e-1, 125e-3]; y_clean = 10.0*gaussian_f(x, *params)
+    noise_fractions = [25e-3, 5e-2, 75e-3, 85e-3, 1e-1, 125e-3]; y_clean = 10.0*gaussian_f(x, *params); init_seed = 17
     for noise in noise_fractions:
-        y = PeakFit1D.add_awgn(y_clean, noise_fraction=noise)
+        y = PeakFit1D.add_awgn(y_clean, noise_fraction=noise, seed=init_seed)
         pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak, xp, yp = pf.get_peak_values()
         if is_peak is not None:
             assert is_peak and 0.4 < xp < 0.6 and 7.5 < yp < 12.5, f"\nPeak fitted not consistent: {is_peak, xp, yp}"
+            init_seed += 2
             
     # Test that for heavily-disturbed by AWGN noise data the fitted peak / valley isn't needle-like
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]

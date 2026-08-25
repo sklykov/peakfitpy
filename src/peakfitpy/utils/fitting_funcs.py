@@ -565,7 +565,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
 
 
 # %% Define peak type and value
-def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool, float, float]:
+def get_peak(f: Callable, fitted_params: np.ndarray) -> tuple[bool, bool, float, float]:
     """
     Get information of a peak (max) or minimum value for the provided function.
 
@@ -573,7 +573,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
     ----------
     f : Callable
         Callable function.
-    fitted_params : tuple[float, ...]
+    fitted_params : np.ndarray
         Defined best (fitted) parameters of the function.
 
     Returns
@@ -789,7 +789,7 @@ def get_peak(f: Callable, fitted_params: tuple[float, ...]) -> tuple[bool, bool,
 
 
 # %% Analytical FWHM
-def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
+def get_fwhm(f_name: str, w_param: float, f_params: Sequence[float] = ()) -> float:
     """
     Calculate analytically the FWHM based on width parameter 'w_param' or full set of fitted / used values for a specific function.
 
@@ -845,6 +845,64 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence = ()) -> float:
         warnings.warn(__warn_mess, stacklevel=2)
         return w_param
 
+  
+funcs_with_fwhm = ("gaussian_f", "gaussian_leveled_f", "lorentzian_f", "bump_f", "sech_f", "logistic_derivative_f",  "rayleigh_pdf_f", 
+                   "rayleigh_pdf_mirrored_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f")
+
+
+def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
+    """
+    Provide more generic implementation of FWHM analytical definition.
+
+    Parameters
+    ----------
+    f_name : str
+        Function name (Callable f.__name__).
+    f_params : Sequence[float]
+        Fitted function parameters.
+
+    Returns
+    -------
+    float | None
+        Estimated analytical FWHM or None if function name not found in the list of implemented ones.
+        
+    """
+    if f_name in funcs_with_fwhm:
+        if f_name == "gaussian_f":
+            k, b, c = f_params  # as from definition
+            return get_fwhm(f_name, c)
+        elif f_name == "gaussian_leveled_f":
+            k, b, c, d = f_params
+            return get_fwhm(f_name, c)
+        elif f_name == "lorentzian_f":
+            a, b, k, d = f_params
+            return get_fwhm(f_name, a)
+        elif f_name == "bump_f":
+            b, k, m, d = f_params
+            return get_fwhm(f_name, b)
+        elif f_name == "sech_f" or f_name == "logistic_derivative_f":
+            k, a, b, d = f_params
+            return get_fwhm(f_name, a)
+        elif f_name == "rayleigh_pdf_f" or f_name == "rayleigh_pdf_mirrored_f":
+            s, k, b, d = f_params
+            return get_fwhm(f_name, s)
+        elif f_name == "laplace_pdf_f":
+            m, b, k, d = f_params
+            return get_fwhm(f_name, b)
+        elif f_name == "sinc_sq_f":
+            k, m, w, d = f_params
+            return get_fwhm(f_name, w)
+        elif f_name == "generalized_gaussian_f" or f_name == "moffat_f":
+            return get_fwhm(f_name, 1.0, f_params)
+        else:
+            __warn_mess = f"\nProvided function '{f_name}' found in the implemented functions but doesn't have a proper wrap"
+            warnings.warn(__warn_mess, stacklevel=2)
+            return None
+    else:
+        __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
+        warnings.warn(__warn_mess, stacklevel=2)
+        return None
+
 
 # %% Define fitting parameter bounds
 # Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: k - not restricted, b - to the padded X range, sigma > tol,
@@ -863,7 +921,7 @@ w_max_laplace = fwhm_max/get_fwhm("laplace_pdf_f", 1.0)
 w_max_gaussian_gen = fwhm_max/get_fwhm("generalized_gaussian_f", 1.0, [1.0, 10.0, 0.5, 1.0, 0.0])
 w_max_moffat = fwhm_max/get_fwhm("moffat_f", 1.0, [1.0, 0.5, 1.0, 0.5, 0.0])
 w_sinc_sq = fwhm_max/get_fwhm("sinc_sq_f", 1.0)
-w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts,
+w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts
 
 params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max_gaussian]),
                      "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, w_max_gaussian, d_max]),
