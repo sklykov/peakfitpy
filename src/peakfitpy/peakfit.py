@@ -263,7 +263,8 @@ class PeakFit1D():
                             if f_name in params_w_min_index:
                                 index = params_w_min_index.get(f_name, None)
                                 if isinstance(index, int):
-                                    params_limits[0][index] = 1.5*self.x_sampling*params_limits[1][index]
+                                    # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Guassian fitting (~= max) 
+                                    params_limits[0][index] = 1.95*self.x_sampling*params_limits[1][index]
                                     params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
                                 elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
                                     i, j = index; params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling

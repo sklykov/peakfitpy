@@ -8,8 +8,8 @@ Run some tests for peakfitpy library directly in this script without pytest usag
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import (bump_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, lorentzian_f,
-                                           moffat_f, parabola_f)
+from peakfitpy.utils.fitting_funcs import (bump_f, constant_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, 
+                                           lorentzian_f, moffat_f, parabola_f)
 
 plot_all_curves_with_defaults = True  # for checking default parameters consistency
 test_simple_case = False  # common manual test - well-defined peak
@@ -22,7 +22,8 @@ test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
 test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = True  # tests the sorting of input X and Y data during initialization
-test_needle_spike = True  # test filtering out needle-like peak and criterion to filter it out
+test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
+test_fallback_fit = True
 
 
 # %% Only for development purposes
@@ -128,3 +129,11 @@ if __name__ == "__main__":
         pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f),
                                                                selection_criterion="IC")
         assert fit_res_np_lp[0].function.__name__ == "gaussian_f"
+        
+    # Check fallback fitting
+    if test_fallback_fit:
+        x = np.linspace(start=-2.5, stop=1.5, num=14)*1e-2; y = y = np.array([-1.0, -0.8, -1.1, -0.9, -1.0, -1.05,  -1.0, -30.0, -0.9, -1.0,
+                                                                              -1.2, -0.9, -1.1, -0.8])  # data with some scaling
+        pf = PeakFit1D(x, y); fit_res_f = pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f),
+                                                           selection_criterion="IC", verbose=True, plot_best_fit=True)
+        fit_res_f_2 = pf.find_best_fit(filter_spikes=True, include_funcs=(gaussian_f, lorentzian_f), verbose=True, plot_best_fit=True)

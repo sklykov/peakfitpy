@@ -10,7 +10,8 @@ Test the fitting for different scenarios of PeakFit1D.
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import default_f_params, gaussian_f, lorentzian_f, bump_f, gaussian_leveled_f, line_f, moffat_f
+from peakfitpy.utils.fitting_funcs import (bump_f, constant_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, 
+                                           lorentzian_f, moffat_f)
 
 
 def test_basic_fitting():
@@ -125,3 +126,10 @@ def test_fitting_features():
     pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f),
                                                            selection_criterion="IC")
     assert fit_res_np_lp[0].function.__name__ == "gaussian_f", "5 points formed a peak that should be fitted as Gaussian function"
+
+
+def test_fitting_fallback():
+    # Test the fallback to the previous curve fitted 
+    rng = np.random.default_rng(72)
+    x = np.linspace(start=-2.5, stop=1.5, num=31)*1e-2; y = rng.random(size=x.shape)*(-11.5)  # data with some scaling
+    pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f), selection_criterion="IC")

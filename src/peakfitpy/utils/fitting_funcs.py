@@ -908,7 +908,7 @@ def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
 # Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: k - not restricted, b - to the padded X range, sigma > tol,
 # rules: width of function commonly in [tol, FWHM=2.0), k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
 # d - function baseline in padded Y range [-1.0, 2.0]
-fwhm_max = 2.005  # allow only FWHM ~= 2.0*(x_max - x_min) as the universal max width characterization parameter for parameters calculation
+fwhm_max = 1.005  # allow only FWHM ~= 1.0*(x_max - x_min) as the universal max width characterization parameter for parameters calculation
 d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0  # universally defined from a X range [0.0, 1.0]
 
 w_max_gaussian = fwhm_max/get_fwhm("gaussian_f", 1.0)  # Retrieve FWHM with width = 1.0
