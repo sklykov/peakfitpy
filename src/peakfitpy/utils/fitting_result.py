@@ -36,6 +36,9 @@ class PeakResult():
     
     is_defined: bool
     is_peak: bool | None
-    x: float | None
-    y: float | None
-    fwhm: float | None
+    x: float | None  # for normalized range
+    y: float | None  # for normalized range
+    fwhm: float | None  # for normalized range
+    x_orig : float | None  # for originally scaled range
+    y_orig : float | None  # for originally scaled range
+    fwhm_orig: float | None  # for originally scaled range

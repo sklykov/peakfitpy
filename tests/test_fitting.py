@@ -155,7 +155,8 @@ def test_fitting_fallback():
     """
     x = np.linspace(start=-2.5, stop=1.5, num=3)*1e-2; y = -0.5*np.linspace(start=-10.5, stop=1.5, num=3) + 5.7  # just 3 points line
     pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f))
-    pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f))
+    fr, p = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f))
+    assert fr.function.__name__ == line_f.__name__, "Expected line fitted to the data, instead: {fr.function.__name__}"
 
 
 @pytest.mark.filterwarnings(r"ignore:\s*No curves could be fitted for the provided values\.$:UserWarning")
@@ -173,4 +174,6 @@ def test_linear_peak_filter():
     y = 5.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
     pf = PeakFit1D(x, y)
     # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
-    pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f, generalized_gaussian_f)) 
+    fr, p = pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f,
+                                                                                              generalized_gaussian_f)) 
+    assert len(pf.all_fits) == 0 and fr is None and p is None, f"Expected empty container: {pf.all_fits} and both None-s: {fr}, {p}" 
