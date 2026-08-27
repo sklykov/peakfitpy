@@ -208,11 +208,9 @@ class PeakFit1D():
         verbose : bool, optional
             Flag for verbose printing out. The default is False.
         plot_best_fit : bool, optional
-            Flag for plotting found curve + peak if defined. The default is False.
+            Flag for plotting found curve + peak on the originally scaled input X and Y ranges. The default is False.
         plot_norm_best_fit : bool, optional
-            Flag for optional plotting found curve + peak if defined on the selected normalized X and Y ranges.\n
-            It will be plotted along with plotting best fit on the original scales (if plot_best_fit is also True).\n
-            The default is False.
+            Flag for plotting found curve + peak on the selected normalized X and Y ranges. The default is False.
         selection_criterion : str, optional
             Criteria for selection of the best fit. Available: "RMSE", "MAE", "IC" (mix of RMSE + minimal function flexibility). \n
             "IC" stands for "Information Criteria". The default is "RMSE" (universally computable value).\n
@@ -223,6 +221,9 @@ class PeakFit1D():
             all supported functions are used. The default is None.
         exclude_funcs : tuple[Callable, ...] | None, optional
             Tuple with Callable functions that should be excluded from fitting. E.g., PeakFit1D.polynomials can be used. The default is None.
+        filter_spikes: bool, optional
+            Flag for checking fitted functions and filter out of needle-like peaks, whose RMSE under the peak is \n
+            in 2 times more than for the whole fit (1-2 points only contributes to a peak). The default is False.
 
         Returns
         -------
@@ -306,37 +307,20 @@ class PeakFit1D():
             else:
                 self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None, fwhm=None)
             if verbose:
-                if self.best_fit_criterion == self.best_fit_criteria[0]:
-                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
-                elif self.best_fit_criterion == self.best_fit_criteria[1]:
-                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
-                elif self.best_fit_criterion == self.best_fit_criteria[2]:
-                    print("Best fit function:", full_f_names.get(self.best_fit.function.__name__),
-                          f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))
+                self.print_fit_info()
             if plot_best_fit:
-                fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
-                if plot_norm_best_fit:
-                    plt.figure(f"Best fit result - Normalized Values {fig_id}")
-                    plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
-                    func_n = full_f_names.get(self.best_fit.function.__name__)
-                    plt.plot(x_plot_vals, self.best_fit.function(x_plot_vals, *self.best_fit.params), lw=3.0, label=f"Fitted {func_n}")
-                    if self.peak.is_defined:
-                        pl = "Found Peak" if self.peak.is_peak else "Found Valley"
-                        plt.plot(self.peak.x, self.peak.y, "o", c='#45c70c', ms=9, label=pl)
-                    plt.legend(loc='best'); plt.tight_layout()
-                plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
-                plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values")
-                func_n = full_f_names.get(self.best_fit.function.__name__, ""); x_raw_scaled = self.denormalize_x(x_plot_vals)
-                plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
-                if self.peak.is_defined:
-                    pl = "Found Peak" if self.peak.is_peak else "Found Valley"
-                    is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
-                plt.legend(loc='best'); plt.tight_layout()
+                self.plot_best_curve()
+            if plot_norm_best_fit:
+                self.plot_best_curve(plot_norm_best_fit)    
         elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
             __warn_m = "\nNo curves could be fitted for the provided values. Previous fits retained."
             warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
+            if verbose:
+                self.print_fit_info()
+            if plot_best_fit:
+                self.plot_best_curve()
+            if plot_norm_best_fit:
+                self.plot_best_curve(plot_norm_best_fit)
         else:
             __warn_m = "\nNo curves could be fitted for the provided values."; warnings.warn(__warn_m, stacklevel=2)
         if len(self.all_fits) == 0 and len(self.selected_funcs) != len(PeakFit1D.functions) and verbose:
@@ -452,6 +436,40 @@ class PeakFit1D():
                 print("All fitted functions are filtered out", flush=True)
 
     # %% Plotting
+    def plot_best_curve(self, use_norm_ranges: bool = False):
+        """
+        Interactively plot the found best fitted curve along with the provided values.
+
+        Parameters
+        ----------
+        use_norm_ranges : bool, optional
+            If True, then plot shows originally scaled values, else - in X and Y in normalized ranges. The default is False.
+
+        Returns
+        -------
+        None
+        
+        """
+        if self.best_fit is not None and self.peak is not None:
+            fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
+            func_n = full_f_names.get(self.best_fit.function.__name__, "")
+            if use_norm_ranges:
+                plt.figure(f"Best fit result - Normalized Values {fig_id}")
+                plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
+            
+                plt.plot(x_plot_vals, self.best_fit.function(x_plot_vals, *self.best_fit.params), lw=3.0, label=f"Fitted {func_n}")
+                if self.peak.is_defined:
+                    pl = "Found Peak" if self.peak.is_peak else "Found Valley"
+                    plt.plot(self.peak.x, self.peak.y, "o", c='#45c70c', ms=9, label=pl)
+            else:
+                plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
+                plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values"); x_raw_scaled = self.denormalize_x(x_plot_vals)
+                plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
+                if self.peak.is_defined:
+                    pl = "Found Peak" if self.peak.is_peak else "Found Valley"
+                    is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
+            plt.legend(loc='best'); plt.tight_layout()
+    
     def plot_norm(self, f_name: str='gaussian_f'):
         """
         Plot interactively provided function for X values in the range [0.0, 1.0].
@@ -682,6 +700,25 @@ class PeakFit1D():
                 raise ValueError(f"\nProvided IC type {ic_type} not implemented 'aicc' or 'bic'")
         else:
             return np.nan
+    
+    def print_fit_info(self):
+        """
+        Print out the information about the best fitted function and used criterion.
+
+        Returns
+        -------
+        None
+        
+        """
+        if self.best_fit_criterion == self.best_fit_criteria[0]:
+            print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
+                  f"| based on {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
+        elif self.best_fit_criterion == self.best_fit_criteria[1]:
+            print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
+                  f"| based on {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
+        elif self.best_fit_criterion == self.best_fit_criteria[2]:
+            print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
+                  f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))
 
     # %% Static useful methods
     @staticmethod

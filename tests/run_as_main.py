@@ -8,8 +8,20 @@ Run some tests for peakfitpy library directly in this script without pytest usag
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import (bump_f, constant_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, 
-                                           lorentzian_f, moffat_f, parabola_f)
+from peakfitpy.utils.fitting_funcs import (
+    bump_f,
+    constant_f,
+    default_f_params,
+    emg_f,
+    gaussian_f,
+    gaussian_leveled_f,
+    line_f,
+    lorentzian_f,
+    moffat_f,
+    parabola_f,
+    rayleigh_pdf_f,
+    sinc_sq_f,
+)
 
 plot_all_curves_with_defaults = True  # for checking default parameters consistency
 test_simple_case = False  # common manual test - well-defined peak
@@ -132,8 +144,9 @@ if __name__ == "__main__":
         
     # Check fallback fitting
     if test_fallback_fit:
-        x = np.linspace(start=-2.5, stop=1.5, num=14)*1e-2; y = y = np.array([-1.0, -0.8, -1.1, -0.9, -1.0, -1.05,  -1.0, -30.0, -0.9, -1.0,
-                                                                              -1.2, -0.9, -1.1, -0.8])  # data with some scaling
+        x = np.linspace(start=-2.5, stop=1.5, num=3)*1e-2
+        y = -0.5*np.linspace(start=-10.5, stop=1.5, num=3) + 5.7
         pf = PeakFit1D(x, y); fit_res_f = pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f),
-                                                           selection_criterion="IC", verbose=True, plot_best_fit=True)
-        fit_res_f_2 = pf.find_best_fit(filter_spikes=True, include_funcs=(gaussian_f, lorentzian_f), verbose=True, plot_best_fit=True)
+                                                           verbose=True, plot_best_fit=True)
+        fit_res_f_2 = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f), 
+                                       verbose=True, plot_best_fit=True)

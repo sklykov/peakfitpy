@@ -8,12 +8,25 @@ Test the fitting for different scenarios of PeakFit1D.
 """
 # %% Global imports
 import numpy as np
+import pytest
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import (bump_f, constant_f, default_f_params, gaussian_f, gaussian_leveled_f, line_f, 
-                                           lorentzian_f, moffat_f)
+from peakfitpy.utils.fitting_funcs import (
+    bump_f,
+    constant_f,
+    default_f_params,
+    emg_f,
+    gaussian_f,
+    gaussian_leveled_f,
+    line_f,
+    lorentzian_f,
+    moffat_f,
+    rayleigh_pdf_f,
+    sinc_sq_f,
+)
 
 
+# %% Test func-s
 def test_basic_fitting():
     """
     Test different fitting scenarios.
@@ -128,8 +141,17 @@ def test_fitting_features():
     assert fit_res_np_lp[0].function.__name__ == "gaussian_f", "5 points formed a peak that should be fitted as Gaussian function"
 
 
+# regex magic used for filtering out only single proper warning
+@pytest.mark.filterwarnings( r"ignore:\s*.*Previous fits retained\.$:UserWarning")
 def test_fitting_fallback():
-    # Test the fallback to the previous curve fitted 
-    rng = np.random.default_rng(72)
-    x = np.linspace(start=-2.5, stop=1.5, num=31)*1e-2; y = rng.random(size=x.shape)*(-11.5)  # data with some scaling
-    pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f), selection_criterion="IC")
+    """
+    Test the fallback to the previous fitted curve.
+
+    Returns
+    -------
+    None
+    
+    """
+    x = np.linspace(start=-2.5, stop=1.5, num=3)*1e-2; y = -0.5*np.linspace(start=-10.5, stop=1.5, num=3) + 5.7  # just 3 points line
+    pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f))
+    pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f))
