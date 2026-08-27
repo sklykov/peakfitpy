@@ -183,8 +183,8 @@ class PeakFit1D():
     # %% Fitting
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
                       selection_criterion: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
-                      exclude_funcs: tuple[Callable, ...] | None = None, 
-                      filter_spikes: bool = False) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
+                      exclude_funcs: tuple[Callable, ...] | None = None, filter_spikes: bool = False,
+                      filter_line_fit: bool = False) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
         """
         Fit in a loop candidate functions for X, Y normalized data and select the best fit.
 
@@ -223,7 +223,7 @@ class PeakFit1D():
             Tuple with Callable functions that should be excluded from fitting. E.g., PeakFit1D.polynomials can be used. The default is None.
         filter_spikes: bool, optional
             Flag for checking fitted functions and filter out of needle-like peaks, whose RMSE under the peak is \n
-            in 2 times more than for the whole fit (1-2 points only contributes to a peak). The default is False.
+            in ~2 times more than for the whole fit (1-2 points only contributes to a peak). The default is False.
 
         Returns
         -------
@@ -265,7 +265,7 @@ class PeakFit1D():
                                 index = params_w_min_index.get(f_name, None)
                                 if isinstance(index, int):
                                     # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Guassian fitting (~= max) 
-                                    params_limits[0][index] = 1.95*self.x_sampling*params_limits[1][index]
+                                    params_limits[0][index] = 1.975*self.x_sampling*params_limits[1][index]
                                     params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
                                 elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
                                     i, j = index; params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
@@ -282,8 +282,11 @@ class PeakFit1D():
                                                          mae=mae, aicc=aicc))  # storing all fitted parameters in a dataclass
                     except RuntimeError:
                         pass  # no successful fit found
+        # Filtering out the fitted functions with bad quality
         if len(self.all_fits) > 0 and filter_spikes:
             self.filter_undersampled_peaks(verbose)
+        if len(self.all_fits) > 0 and filter_line_fit:
+            self.filter_linear_peaks(verbose)
         # Get the best fit after fitting loop and additional spike (needle-like) filtering
         if len(self.all_fits) > 0:
             if selection_criterion in self.best_fit_criteria:
@@ -433,7 +436,43 @@ class PeakFit1D():
                     filtered_fits.append(fit_res)
             self.all_fits = filtered_fits
             if verbose and len(self.all_fits) == 0:
-                print("All fitted functions are filtered out", flush=True)
+                print("All fitted functions are filtered out by 'filter_undersampled_peaks'", flush=True)
+                
+    def filter_linear_peaks(self, verbose: bool = False):
+        """
+        Filter the fitted peaks for functions with FHWM (defined in 'funcs_with_fwhm' variable) if line function has better RMSE.
+
+        Parameters
+        ----------
+        verbose : bool, optional
+            Flag for verbose printouts. The default is False.
+
+        Returns
+        -------
+        None
+        
+        """
+        # check that line / constant line haven't been fitted
+        if len(self.all_fits) > 0 and not any(fit.function in (line_f, constant_f) for fit in self.all_fits):
+            pf_line = PeakFit1D(x=self.x_norm, y=self.y_norm); best_line_fit, _ = pf_line.find_best_fit(include_funcs=(line_f, constant_f))
+            filtered_fits = []
+            for fit_res in self.all_fits:
+                f_name = fit_res.function.__name__
+                if f_name in funcs_with_fwhm:
+                    peak_params = get_peak(fit_res.function, fit_res.params)
+                    if peak_params[0] :  # peak / valley defined
+                        if best_line_fit.rmse >= fit_res.rmse:
+                            filtered_fits.append(fit_res)
+                        elif verbose: 
+                            print((f"Function '{f_name}' filtered out from 'all_fits' because its RMSE {round(fit_res.rmse, 6)}"
+                                   + f" is larger than line function RMSE {round(best_line_fit.rmse, 6)}"), flush=True)
+                    else:
+                        filtered_fits.append(fit_res)  # no peak found for the function that assumes it - for fallback
+                else:
+                    filtered_fits.append(fit_res)
+            self.all_fits = filtered_fits
+            if verbose and len(self.all_fits) == 0:
+                print("All fitted functions are filtered out by 'filter_linear_peaks'", flush=True)
 
     # %% Plotting
     def plot_best_curve(self, use_norm_ranges: bool = False):

@@ -15,6 +15,7 @@ from peakfitpy.utils.fitting_funcs import (
     emg_f,
     gaussian_f,
     gaussian_leveled_f,
+    generalized_gaussian_f,
     line_f,
     lorentzian_f,
     moffat_f,
@@ -33,9 +34,10 @@ test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with
 test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
 test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
-test_sorting = True  # tests the sorting of input X and Y data during initialization
+test_sorting = False  # tests the sorting of input X and Y data during initialization
 test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
-test_fallback_fit = True
+test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
+test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 
 
 # %% Only for development purposes
@@ -150,3 +152,13 @@ if __name__ == "__main__":
                                                            verbose=True, plot_best_fit=True)
         fit_res_f_2 = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f), 
                                        verbose=True, plot_best_fit=True)
+    
+    # Check badly fitted peak filtering
+    if test_linear_peak_filter:
+        n_points = 5; rng = np.random.default_rng(n_points+2)
+        x = np.linspace(start=-2.5, stop=1.5, num=n_points)*1e-2
+        y = 5.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
+        pf = PeakFit1D(x, y)
+        # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
+        pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f, generalized_gaussian_f), 
+                         verbose=True, plot_best_fit=True)
