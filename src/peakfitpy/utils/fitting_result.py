@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 
 
 # %% Fitting results wrapping class
-# Meaning of flags below: make the class attributes not reassignable, class restricted to own only these param-s, '==' not auto-implemented
+# Meaning of flags below: make the class attributes not re-assignable, class restricted to own only these param-s, '==' not auto-implemented
 @dataclass(frozen=True, slots=True, eq=False)
 class Fit1DResult():
     """Dataclass for storing fitting results in its named variables."""

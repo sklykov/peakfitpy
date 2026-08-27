@@ -27,7 +27,7 @@ full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_le
                 "logistic_derivative_f": "Derivative of Logistic", "laplace_pdf_f": "Laplace PDF",
                 "rayleigh_pdf_f": "Rayleigh PDF", "rayleigh_pdf_mirrored_f": "Mirrored Rayleigh PDF",
                 "cubic_polynomial": "Cubic Polynomial", "quartic_polynomial" : "Quartic Polynomial",
-                "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat PDF", "sinc_sq_f": "Sinc^2 Function",
+                "generalized_gaussian_f": "Generalized Gaussian", "moffat_f": "Moffat Profile", "sinc_sq_f": "Sinc^2 Function",
                 "emg_f": "Exp. Mod. Gaussian PDF", "constant_f": "Constant Line"}
 
 # Symmetric around the max / min functions
@@ -208,7 +208,7 @@ def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
 
 def constant_f(X: np.ndarray | float, b: float) ->  np.ndarray | float:
     """
-    Parametric Constant Line function for fallback fitting (preferable for noise with std = 1.0 if # of samples is enough).
+    Parametric Constant Line function for fallback fitting of values without clear extreme point.
 
     Equation: Y = 0.0*X + b.
 
@@ -539,6 +539,8 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
     """
     Callable parametrized exponentially modified Gaussian distribution (EMG) PDF.
 
+    Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma) + d.
+
     Parameters
     ----------
     X : np.ndarray | float
@@ -557,7 +559,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
     Returns
     -------
     np.ndarray | float
-        Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma).
+        Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma) + d.
 
     """
     K = tau / sigma  # as used by SciPy
@@ -845,8 +847,8 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence[float] = ()) -> flo
         warnings.warn(__warn_mess, stacklevel=2)
         return w_param
 
-  
-funcs_with_fwhm = ("gaussian_f", "gaussian_leveled_f", "lorentzian_f", "bump_f", "sech_f", "logistic_derivative_f",  "rayleigh_pdf_f", 
+
+funcs_with_fwhm = ("gaussian_f", "gaussian_leveled_f", "lorentzian_f", "bump_f", "sech_f", "logistic_derivative_f",  "rayleigh_pdf_f",
                    "rayleigh_pdf_mirrored_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f")
 
 
@@ -865,7 +867,7 @@ def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
     -------
     float | None
         Estimated analytical FWHM or None if function name not found in the list of implemented ones.
-        
+
     """
     if f_name in funcs_with_fwhm:
         if f_name == "gaussian_f":
@@ -906,7 +908,7 @@ def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
 
 # %% Define fitting parameter bounds
 # Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: k - not restricted, b - to the padded X range, sigma > tol,
-# rules: width of function commonly in [tol, FWHM=2.0), k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
+# rules: width of function commonly within X range, k - unrestricted, b or m (central value) - in padded X range [-1.0, 2.0] or [-2.0, 2.0],
 # d - function baseline in padded Y range [-1.0, 2.0]
 fwhm_max = 1.005  # allow only FWHM ~= 1.0*(x_max - x_min) as the universal max width characterization parameter for parameters calculation
 d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0  # universally defined from a X range [0.0, 1.0]

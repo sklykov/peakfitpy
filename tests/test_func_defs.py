@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Test that the function definitions are consistenly imported in PeakFit1D class.
+Test that the function definitions are consistently imported in PeakFit1D class.
 
 @author: Sergei Klykov
 @license: MIT

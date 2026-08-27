@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-The utils model autoexports.
+The utils module autoexports.
 
 @author: Sergei Klykov
 
-@licence: MIT, @year: 2026
+@license: MIT, @year: 2026
 
 """
-__all__ = ['fitting_funcs', 'fitting_result']

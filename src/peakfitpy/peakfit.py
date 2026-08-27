@@ -133,7 +133,7 @@ class PeakFit1D():
         # Check that data contains only real-valued numbers
         if not np.all(np.isrealobj(self.x_vals)) or not np.all(np.isrealobj(self.y_vals)):
             raise ValueError("\nX and/or Y data contains complex (not real) values")
-        # Check that the input arrays has minimal length of 2 - minimal required to fit line and bump function
+        # Require at least 2 samples, the minimum needed for fitting a line
         if self.x_vals.shape[0] < 2 or self.y_vals.shape[0] < 2:
             raise ValueError("\nX and/or Y data should be contain >= 2 values")
         # Check data consistency - sizes of X and Y should be equal
@@ -191,14 +191,14 @@ class PeakFit1D():
         Note that fitting results stored as the dataclass 'Fit1DResult' in self.best_fit with attributes: 'function', 'params', 'pcov', \n
         'perr', 'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
         Meaning of attributes: 'function' - Callable function, 'params' - np.ndarray with fitted parameters, \n
-        'pcov' - returned by SciPy 'curve_fit' method 'pcov', 'perr' = np.sqrt(np.diag(pcov)) - estimation for each 'params' error, 
+        'pcov' - returned by SciPy 'curve_fit' method 'pcov', 'perr' = np.sqrt(np.diag(pcov)) - estimation for each 'params' error,
         'rmse', 'mae' - calculated based on difference input Y - fitted_function(input X), 'aicc' - Corrected Akaike Information Criterion.\n
         Defined peak / valley stored in the class attribute 'peak' (or 'self.peak') with the named attributes: \n
         peak.is_defined - bool with True if the extreme point has been found / exists; peak.is_peak - bool with True if it's a peak, \n
         False - if it's valley and None if 'peak.is_defined' is False; peak.x and peak.y - coordinates of peak / valley if \n
         'peak.is_defined' is True and None otherwise. \n
         Note that params, pcov, perr, and PeakResult.x/y refer to the normalized fitting coordinates. \n
-        Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale. \n 
+        Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale. \n
         All names of supported functions available in the class attribute PeakFit1D.function_names and as Callable functions in \n
         PeakFit1D.functions. They can be used as provided Callables to either 'include_funcs', or 'exclude_funcs'. \n
         If both 'include_funcs' and 'exclude_funcs' are provided as not None, then ValueError will be thrown.
@@ -223,12 +223,13 @@ class PeakFit1D():
             Tuple with Callable functions that should be excluded from fitting. E.g., PeakFit1D.polynomials can be used. \n
             The default is None.
         filter_spikes: bool, optional
-            Flag for checking fitted functions and filter out of needle-like peaks, whose RMSE under the peak is \n
-            in ~2 times more than for the whole fit (1-2 points only contributes to a peak). The default is False.
+            Flag for checking fitted functions and filter out of needle-like peaks, where fewer than 3 samples lie within \n
+            approximately 1.5×FWHM and whose RMSE under the peak is in ~2 times more than for the whole fit \n
+            (1-2 points only contributes to a peak). The default is False.
         filter_line_fit: bool, optional
-            If line_f was not included in the fitted candidates, additionally fit a lineand filter peak-shaped models \n
-            whose RMSE is worse than the line fit. If line_f was already fitted, no additional filtering is performed.\n
-            The default is False.
+            If line_f was not included in the fitted candidates, additionally fit a line and filter peak-shaped models
+            with an analytically defined FWHM whose RMSE is worse than the line fit. \n
+            If line_f was already fitted, no additional filtering is performed. The default is False.
 
         Returns
         -------
@@ -245,8 +246,9 @@ class PeakFit1D():
             y_orig : float | None - in the originally scaled range; fwhm_orig: float | None - in the originally scaled range \n
             Note that tuple[None, None] will be returned if no best fit found and the previous fitting was unsuccessful. \n
             Otherwise, previous best fit and peak results will be returned.
-        
+
         """
+        previous_selected_funcs = self.selected_funcs; previous_best_criteria = self.best_fit_criteria
         self.selected_funcs = self._get_fitting_funcs(include_funcs, exclude_funcs)  # check provided parameters + get actual func-s for run
         previous_fits = deepcopy(self.all_fits); self.all_fits = []  # default values for class attributes
         previous_criteria = self.best_fit_criterion; self.best_fit_criterion = ""
@@ -273,12 +275,11 @@ class PeakFit1D():
                                 fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
                                 perr = np.sqrt(np.diag(pcov))
                         else:
-                            # Sampling-based lower width estimate intended to suppress poorly sampled, needle-like fitted peaks.
-                            # It's based on max FWHM * dx * 1.5 (dx = x_sampling), so ~ 3 points should lay within peak
+                            # Sampling-based minimum width corresponding to approx. FWHM_min ~= 2*x_sampling for most supported profiles
                             if f_name in params_w_min_index:
                                 index = params_w_min_index.get(f_name, None)
                                 if isinstance(index, int):
-                                    # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Guassian fitting (~= max) 
+                                    # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Gaussian fitting (~= max)
                                     params_limits[0][index] = 1.975*self.x_sampling*params_limits[1][index]
                                     params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
                                 elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
@@ -320,21 +321,22 @@ class PeakFit1D():
             if peak_params[0]:
                 fwhm = float(get_fwhm_generic(best_f_name, self.best_fit.params)) if best_f_name in funcs_with_fwhm else None
                 fwhm_orig = float(self.x_range)*fwhm if fwhm is not None else None
-                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=bool(peak_params[1]), x=float(peak_params[2]), 
-                                       y=float(peak_params[3]), fwhm=fwhm, x_orig=float(self.denormalize_x(peak_params[2])), 
+                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=bool(peak_params[1]), x=float(peak_params[2]),
+                                       y=float(peak_params[3]), fwhm=fwhm, x_orig=float(self.denormalize_x(peak_params[2])),
                                        y_orig=float(self.denormalize_y(peak_params[3])), fwhm_orig=fwhm_orig)
             else:
-                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None, fwhm=None, 
+                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None, fwhm=None,
                                        x_orig=None, y_orig=None, fwhm_orig=None)
             if verbose:
                 self.print_fit_info()
             if plot_best_fit:
                 self.plot_best_curve()
             if plot_norm_best_fit:
-                self.plot_best_curve(plot_norm_best_fit)    
+                self.plot_best_curve(plot_norm_best_fit)
         elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
             __warn_m = "\nNo curves could be fitted for the provided values. Previous fits retained."
             warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
+            self.best_fit_criteria = previous_best_criteria; self.selected_funcs = previous_selected_funcs
             if verbose:
                 self.print_fit_info()
             if plot_best_fit:
@@ -372,8 +374,8 @@ class PeakFit1D():
                 return self.peak.is_peak, self.peak.x, self.peak.y
         else:
             return None, None, None
-    
-    def _get_fitting_funcs(self, include_funcs: tuple[Callable, ...] | None = None, 
+
+    def _get_fitting_funcs(self, include_funcs: tuple[Callable, ...] | None = None,
                            exclude_funcs: tuple[Callable, ...] | None = None) -> tuple[Callable, ...]:
         """
         Filter out the fitting functions based on provided inputs.
@@ -395,11 +397,11 @@ class PeakFit1D():
         ------
         ValueError
             If both include_funcs and exclude_funcs are not None.
-            
+
         """
         if include_funcs is not None and exclude_funcs is not None:
             raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambiguous")
-        if include_funcs is not None: 
+        if include_funcs is not None:
             selected_funcs = tuple(f for f in include_funcs if f in self.functions)
             if selected_funcs:
                 max_k = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
@@ -416,7 +418,7 @@ class PeakFit1D():
             else:
                 raise ValueError("All functions excluded or provided empty input value")
         return self.functions  # by default - fitting all functions
-    
+
     def filter_undersampled_peaks(self, verbose: bool = False):
         """
         Filter out badly resolved, sharp or needle-like peaks that can be fitted to the outliers in the input data.
@@ -429,7 +431,7 @@ class PeakFit1D():
         Returns
         -------
         None
-        
+
         """
         if len(self.all_fits) > 0:
             filtered_fits = []
@@ -445,7 +447,7 @@ class PeakFit1D():
                             if fit_res.rmse >= tol:
                                 x_filt = self.x_norm[points_under_peak_mask]; y_filt = self.y_norm[points_under_peak_mask]
                                 rmse_p = np.sqrt(np.mean((fit_res.function(x_filt, *fit_res.params) - y_filt)**2))
-                                ratio = round((rmse_p / fit_res.rmse), 2) 
+                                ratio = round((rmse_p / fit_res.rmse), 2)
                                 if ratio < 2.05:  # So, RMSE under the peak isn't worse than ...% of total RMSE
                                     filtered_fits.append(fit_res)
                                 elif verbose:
@@ -460,11 +462,11 @@ class PeakFit1D():
             self.all_fits = filtered_fits
             if verbose and len(self.all_fits) == 0:
                 print("All fitted functions are filtered out by 'filter_undersampled_peaks'", flush=True)
-                
+
     def filter_linear_peaks(self, verbose: bool = False):
         """
-        Filter the fitted peaks for functions with FHWM (defined in 'funcs_with_fwhm' variable) if line function has better RMSE.
-        
+        Filter the fitted peaks for functions with FWHM (defined in 'funcs_with_fwhm' variable) if line function has better RMSE.
+
         Note that this filter would be applied if no line has been fitted before.
 
         Parameters
@@ -475,9 +477,9 @@ class PeakFit1D():
         Returns
         -------
         None
-        
+
         """
-        # check that line / constant line haven't been fitted
+        # Apply the auxiliary filter only if line_f was not already fitted
         if len(self.all_fits) > 0 and not any(fit.function is line_f for fit in self.all_fits):
             pf_line = PeakFit1D(x=self.x_norm, y=self.y_norm); best_line_fit, _ = pf_line.find_best_fit(include_funcs=(line_f, ))
             filtered_fits = []
@@ -488,7 +490,7 @@ class PeakFit1D():
                     if peak_params[0] :  # peak / valley defined
                         if best_line_fit.rmse >= fit_res.rmse:
                             filtered_fits.append(fit_res)
-                        elif verbose: 
+                        elif verbose:
                             print((f"Function '{f_name}' filtered out from 'all_fits' because its RMSE {round(fit_res.rmse, 6)}"
                                    + f" is larger than line function RMSE {round(best_line_fit.rmse, 6)}"), flush=True)
                     else:
@@ -512,7 +514,7 @@ class PeakFit1D():
         Returns
         -------
         None
-        
+
         """
         if self.best_fit is not None and self.peak is not None:
             fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
@@ -520,7 +522,7 @@ class PeakFit1D():
             if use_norm_ranges:
                 plt.figure(f"Best fit result - Normalized Values {fig_id}")
                 plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
-            
+
                 plt.plot(x_plot_vals, self.best_fit.function(x_plot_vals, *self.best_fit.params), lw=3.0, label=f"Fitted {func_n}")
                 if self.peak.is_defined:
                     pl = "Found Peak" if self.peak.is_peak else "Found Valley"
@@ -533,7 +535,7 @@ class PeakFit1D():
                     pl = "Found Peak" if self.peak.is_peak else "Found Valley"
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
             plt.legend(loc='best'); plt.tight_layout()
-    
+
     def plot_norm(self, f_name: str='gaussian_f'):
         """
         Plot interactively provided function for X values in the range [0.0, 1.0].
@@ -764,7 +766,7 @@ class PeakFit1D():
                 raise ValueError(f"\nProvided IC type {ic_type} not implemented 'aicc' or 'bic'")
         else:
             return np.nan
-    
+
     def print_fit_info(self):
         """
         Print out the information about the best fitted function and used criterion.
@@ -772,15 +774,15 @@ class PeakFit1D():
         Returns
         -------
         None
-        
+
         """
-        if self.best_fit_criterion == self.best_fit_criteria[0]:
+        if self.best_fit_criterion == "RMSE":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
                   f"| based on {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
-        elif self.best_fit_criterion == self.best_fit_criteria[1]:
+        elif self.best_fit_criterion == "MAE":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
                   f"| based on {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
-        elif self.best_fit_criterion == self.best_fit_criteria[2]:
+        elif self.best_fit_criterion == "IC":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
                   f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))
 
@@ -826,7 +828,7 @@ class PeakFit1D():
         y : nparray
             Original array.
         noise_fraction : float, optional
-            Max STD of Gaussian Standard Noise in a range [0.0, 1.0]. The default is 0.075.
+            Noise standard deviation as a fraction of np.ptp(y) or max-min difference in Y.
         seed : int | None, optional
             Optional seed for making randomized addition repeatable.
 
