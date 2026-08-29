@@ -50,7 +50,7 @@ def test_basic_fitting():
     else:
         raise AssertionError("\nPeak hasn't been found for the simple basic case")
     assert is_peak, "The peak should be fitted, not valley"
-    
+
     # Test not implemented function what should be still fitted
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
     y = np.exp(-(x - b*1.1)**6/13.0)  + 1.0 / x  # some undefined in a list of implemented functions function
@@ -60,34 +60,34 @@ def test_basic_fitting():
     else:
         raise AssertionError("\nPeak hasn't been found for the simple basic case")
     assert is_peak, "The peak should be fitted, not valley"
-    
+
     # Test line fitting as fallback, baseline fitting
     x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
     pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit()
-    assert best_fit is not None and peak is not None and not peak.is_defined, "Some curve should be fitted and peak shold be not defined"
+    assert best_fit is not None and peak is None, "Some curve should be fitted and peak shold be not defined"
     f_n = pf.best_fit.function.__name__
     assert f_n == "line_f", f"Line only should be fitted to 2 points, but fitted function: {f_n}"
     assert len(pf.all_fits) == 2, f"Only 2 lines can be fitted to only 2 points but fitted: {len(pf.all_fits)}"
-    
+
     # Test excluding lines as polynomials from fitting
     x = np.asarray([1.2, 2.7]); y = np.asarray([-20, -31])
     pf = PeakFit1D(x, y); best_fit, peak = pf.find_best_fit(exclude_funcs=PeakFit1D.polynomials)
-    condition = best_fit is not None and best_fit.function.__name__ == "constant_f" and not peak.is_defined
+    condition = best_fit is not None and best_fit.function.__name__ == "constant_f" and peak is None
     assert condition, "Constant Line should be fitted - not counted as polynomial"
-    
+
     # Test fitting of 3 points and number of suitable functions for it
     x = np.asarray([1.2, 2.7, 4.0]); y = np.asarray([-20, -32, -22]); pf = PeakFit1D(x, y); pf.find_best_fit()
     n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n = pf.best_fit.function.__name__
     assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
     assert f_n == "parabola_f", f"For 3 asymmetric points problem the best fit should be parabola, instead got {f_n}"
-    
+
     # Test fitting of 4 points and number of suitable functions for it
     x = np.asarray([1.2, 1.5, 2.7, 4.0]); y = np.asarray([20, 26, 32, 22]); pf = PeakFit1D(x, y); pf.find_best_fit()
     n_suitable_fits = len([f for f in default_f_params if len(default_f_params[f]) <= y.shape[0]]); f_n_pos = pf.best_fit.function.__name__
     assert n_suitable_fits >= len(pf.all_fits), f"# of fitted curves: {len(pf.all_fits)}, # of suitable curves: {n_suitable_fits}"
     y = -y;  pf = PeakFit1D(x, y); pf.find_best_fit(); f_n_neg = pf.best_fit.function.__name__
     assert f_n_pos == f_n_neg, f"Functions fitted for original and -1.0*original data should be the same, instead: {f_n_pos} and {f_n_neg}"
-    
+
     # Testing stability of fitting
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
     noise_fractions = [25e-3, 5e-2, 75e-3, 85e-3, 1e-1, 125e-3]; y_clean = 10.0*gaussian_f(x, *params); init_seed = 17
@@ -97,15 +97,15 @@ def test_basic_fitting():
         if is_peak is not None:
             assert is_peak and 0.4 < xp < 0.6 and 7.5 < yp < 12.5, f"\nPeak fitted not consistent: {is_peak, xp, yp}"
             init_seed += 2
-            
+
     # Test that for heavily-disturbed by AWGN noise data the fitted peak / valley isn't needle-like
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
     y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=25)
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak, xp, yp = pf.get_peak_values()
     if is_peak is not None:
-        assert 0.0 < xp < 1.0 and 0.85*y.min() <= yp <= 1.15*y.max(), ("\nFitting of noisy data results in peak: {xp, yp} - what not" 
+        assert 0.0 < xp < 1.0 and 0.85*y.min() <= yp <= 1.15*y.max(), ("\nFitting of noisy data results in peak: {xp, yp} - what not"
                                                                        + f" in [0.0, 1.0] X and {0.85*y.min(), 1.15*y.max()} Y ranges")
-    
+
     # Test robustness against inversion and shuffling of input data
     x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]
     y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2, seed=101)
@@ -116,9 +116,9 @@ def test_basic_fitting():
     rng = np.random.default_rng(seed=250); shuffled_indices = rng.permutation(x.shape[0])
     x = x[shuffled_indices]; y = y[shuffled_indices]  # shuffling of the data
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_shf, xp_shf, yp_shf = pf.get_peak_values()
-    assert not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv) and np.isclose(yp_shf, yp_inv), "Shuffling of X and Y data failure" 
-    
-    
+    assert not is_peak_d and not is_peak_shf and np.isclose(xp_shf, xp_inv) and np.isclose(yp_shf, yp_inv), "Shuffling of X and Y data failure"
+
+
 def test_fitting_features():
     """
     Test features of fitting loop.
@@ -126,13 +126,13 @@ def test_fitting_features():
     Returns
     -------
     None
-    
+
     """
     # Test needle spikes filtering and resolving criterion
     rng = np.random.default_rng(57)
     x = np.linspace(start=-2.5, stop=1.5, num=42)
     y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
-    pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True, 
+    pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True,
                                                           include_funcs=(bump_f, gaussian_leveled_f, line_f, lorentzian_f))
     assert fit_res_np_l[0].function.__name__ == "line_f", "Line should be fitted to the data with single outlier"
     # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
@@ -151,12 +151,13 @@ def test_fitting_fallback():
     Returns
     -------
     None
-    
+
     """
     x = np.linspace(start=-2.5, stop=1.5, num=3)*1e-2; y = -0.5*np.linspace(start=-10.5, stop=1.5, num=3) + 5.7  # just 3 points line
     pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f))
     fr, p = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f))
-    assert fr.function.__name__ == line_f.__name__, "Expected line fitted to the data, instead: {fr.function.__name__}"
+    fr_n = fr.function.__name__; condition = fr is not None and p is None and fr_n == line_f.__name__ and len(pf.all_fits) > 0
+    assert condition, "Expected line fitted to the data, instead: {fr.function.__name__}"
 
 
 @pytest.mark.filterwarnings(r"ignore:\s*No curves could be fitted for the provided values\.$:UserWarning")
@@ -167,7 +168,7 @@ def test_linear_peak_filter():
     Returns
     -------
     None
-    
+
     """
     n_points = 5; rng = np.random.default_rng(n_points+2)
     x = np.linspace(start=-2.5, stop=1.5, num=n_points)*1e-2
@@ -175,5 +176,5 @@ def test_linear_peak_filter():
     pf = PeakFit1D(x, y)
     # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
     fr, p = pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f,
-                                                                                              generalized_gaussian_f)) 
-    assert len(pf.all_fits) == 0 and fr is None and p is None, f"Expected empty container: {pf.all_fits} and both None-s: {fr}, {p}" 
+                                                                                              generalized_gaussian_f))
+    assert len(pf.all_fits) == 0 and fr is None and p is None, f"Expected empty container: {pf.all_fits} and both None-s: {fr}, {p}"

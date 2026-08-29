@@ -183,7 +183,7 @@ class PeakFit1D():
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
                       selection_criterion: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
                       exclude_funcs: tuple[Callable, ...] | None = None, filter_spikes: bool = False,
-                      filter_line_fit: bool = False) -> tuple[Fit1DResult | None, PeakResult | None]:
+                      filter_line_fit: bool = False) -> tuple[Fit1DResult, PeakResult | None] | tuple[None, None]:
         """
         Fit in a loop candidate functions for X, Y normalized data and select the best fit.
 
@@ -232,13 +232,14 @@ class PeakFit1D():
 
         Returns
         -------
-        tuple[Fit1DResult | None, PeakResult | None]
+        tuple[Fit1DResult, PeakResult | None] | tuple[None, None]
             1st dataclass (Fit1DResult) contain best fit function result, 2nd PeakResult - peak searching result. \n
             Fit1DResult's attributes (as Fit1DResult.attribute): function: Callable - fitted callable function; \n
             params: NDArray[np.floating[Any]] - fitted parameters; \n
             pcov: NDArray[np.floating[Any]] | None - store report of curve_fit method; \n
             perr: NDArray[np.floating[Any]] | None - store np.sqrt(np.diag(pcov)), all found parameters ~ +- perr; \n
             rmse: float, mae: float - calculated for normalized X and Y ranges, aicc: float | None. \n
+            Note that if no Peak can be defined for fitted function, instead of PeakResult class will be returned None. \n
             PeakResult's attributes: is_defined: bool - True if peak can be defined; is_peak: bool | None - True => peak, \n
             False => valley; x: float | None - x peak in a normalized range; y: float | None - y peak in a normalized range; \n
             fwhm: float | None - for a normalized range; x_orig : float | None - in the originally scaled range; \n
@@ -324,15 +325,14 @@ class PeakFit1D():
                                        y=float(peak_params[3]), fwhm=fwhm, x_orig=float(self.denormalize_x(peak_params[2])),
                                        y_orig=float(self.denormalize_y(peak_params[3])), fwhm_orig=fwhm_orig)
             else:
-                self.peak = PeakResult(is_defined=bool(peak_params[0]), is_peak=None, x=None, y=None, fwhm=None,
-                                       x_orig=None, y_orig=None, fwhm_orig=None)
+                self.peak = None  # return None instead of empty data class
             if verbose:
                 self.print_fit_info()
             if plot_best_fit:
                 self.plot_best_curve()
             if plot_norm_best_fit:
                 self.plot_best_curve(plot_norm_best_fit)
-        elif len(previous_fits) > 0 and self.best_fit is not None and self.peak is not None:
+        elif len(previous_fits) > 0 and self.best_fit is not None:
             __warn_m = "\nNo curves could be fitted for the provided values. Previous fits retained."
             warnings.warn(__warn_m, stacklevel=2); self.all_fits = deepcopy(previous_fits); self.best_fit_criterion = previous_criteria
             self.best_fit_criteria = previous_best_criteria; self.selected_funcs = previous_selected_funcs
@@ -398,25 +398,22 @@ class PeakFit1D():
             If both include_funcs and exclude_funcs are not None.
 
         """
+        selected_funcs: tuple[Callable, ...] = ()  # container for storing selected functions
         if include_funcs is not None and exclude_funcs is not None:
             raise ValueError("\nProviding both include_funcs and exclude_funcs as not None is too ambiguous")
         if include_funcs is not None:
             selected_funcs = tuple(f for f in include_funcs if f in self.functions)
-            if selected_funcs:
-                max_k = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
-                self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
-                return selected_funcs
-            else:
+            if not selected_funcs:
                 raise ValueError("No functions found among the implemented ones or provided empty input value")
         if exclude_funcs is not None:
             selected_funcs = tuple(f for f in self.functions if f not in exclude_funcs)
-            if selected_funcs:
-                max_k = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
-                self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
-                return selected_funcs
-            else:
+            if not selected_funcs:
                 raise ValueError("All functions excluded or provided empty input value")
-        return self.functions  # by default - fitting all functions
+        if not selected_funcs:
+            selected_funcs = self.functions  # by default - fitting all functions
+        max_k: int = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
+        self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
+        return selected_funcs
 
     def filter_undersampled_peaks(self, verbose: bool = False):
         """
@@ -661,27 +658,21 @@ class PeakFit1D():
 
         """
         y = np.asarray(y) if isinstance(y, Sequence) else y
-        if self.y_range != 0.0:
-            if isinstance(y, np.ndarray):
-                if not np.all(np.isrealobj(y)):
-                    raise ValueError("\nY contains complex values")
-                if y.min() < self.y_min or y.max() > self.y_max:
-                    raise ValueError("\nMin or Max element from provided y array lays out of range of initially used y array")
-                if np.any(np.isnan(y)):
-                    raise ValueError("\nY contains NaN values")
-            else:
-                if not np.isrealobj(y):
-                    raise ValueError("\nY is complex")
-                if y < self.y_min or y > self.y_max:
-                    raise ValueError("\nProvided element lays out of range of the initially used y array")
-                if np.isnan(y):
-                    raise ValueError("\nY is NaN")
-            return (y - self.y_min) / self.y_range
+        if isinstance(y, np.ndarray):
+            if not np.all(np.isrealobj(y)):
+                raise ValueError("\nY contains complex values")
+            if y.min() < self.y_min or y.max() > self.y_max:
+                raise ValueError("\nMin or Max element from provided y array lays out of range of initially used y array")
+            if np.any(np.isnan(y)):
+                raise ValueError("\nY contains NaN values")
         else:
-            if isinstance(y, RealScalar):
-                return type(y)(0)  # like explicitly int(0) or float(0)
-            elif isinstance(y, np.ndarray):
-                return np.zeros_like(y)
+            if not np.isrealobj(y):
+                raise ValueError("\nY is complex")
+            if y < self.y_min or y > self.y_max:
+                raise ValueError("\nProvided element lays out of range of the initially used y array")
+            if np.isnan(y):
+                raise ValueError("\nY is NaN")
+        return (y - self.y_min) / self.y_range
 
     def denormalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """

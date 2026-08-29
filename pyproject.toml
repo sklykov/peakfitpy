@@ -11,6 +11,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
+keywords = ["1D curve fitting", "single peak properties"]
+license = "MIT"
+license-files = ["LICENSE"]
+
 dependencies = [
     "numpy",
     "matplotlib",
@@ -18,8 +22,6 @@ dependencies = [
 ]
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest"]
-
-keywords = ["1D curve fitting", "single peak properties"]
 
 [project.urls]  # METADATA in a wheel file will represent the data below by using pip show peakfitpy -v
 "Homepage" = "https://github.com/sklykov/peakfit"
@@ -40,7 +42,7 @@ peakfitpy = ["*.png"]  # should exclude image files from distribution
 version = {attr = "peakfitpy.__version__"}  # Variable set in the __init__.py
 
 [build-system]
-requires = ["setuptools>=75.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]

@@ -19,13 +19,13 @@ from numpy.typing import NDArray
 @dataclass(frozen=True, slots=True, eq=False)
 class Fit1DResult():
     """Dataclass for storing fitting results in its named variables."""
-    
+
     function: Callable
     params: NDArray[np.floating[Any]]  # fitted parameters
     pcov: NDArray[np.floating[Any]] | None  # store report of curve_fit method
     perr: NDArray[np.floating[Any]] | None  # for storing np.sqrt(np.diag(pcov)), all found parameters ~ +- perr
     rmse: float
-    mae: float 
+    mae: float
     aicc: float | None
 
 
@@ -33,12 +33,12 @@ class Fit1DResult():
 @dataclass(frozen=True, slots=True)
 class PeakResult():
     """Dataclass for storing fitted peak properties in its named variables."""
-    
+
     is_defined: bool
-    is_peak: bool | None
-    x: float | None  # for normalized range
-    y: float | None  # for normalized range
+    is_peak: bool
+    x: float  # for normalized range
+    y: float  # for normalized range
     fwhm: float | None  # for normalized range
-    x_orig : float | None  # for originally scaled range
-    y_orig : float | None  # for originally scaled range
+    x_orig : float  # for originally scaled range
+    y_orig : float  # for originally scaled range
     fwhm_orig: float | None  # for originally scaled range
