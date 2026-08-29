@@ -11,7 +11,6 @@ import warnings
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from copy import deepcopy
-from numbers import Real
 from typing import Any
 
 import matplotlib
@@ -55,9 +54,9 @@ from .utils.fitting_result import Fit1DResult, PeakResult
 
 # %% Module parameters
 __docformat__ = "numpydoc"
-RealSeq = Sequence[Real]  # for providing type hints accepting types like tuple[float], list[int]
+RealScalar = int | float | np.floating[Any] | np.integer[Any]
+RealSeq = Sequence[RealScalar]  # for providing type hints accepting types like tuple[float], list[int]
 nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
-RealNum = np.floating[Any] | np.integer[Any]
 
 
 # %% Main class def.
@@ -69,8 +68,8 @@ class PeakFit1D():
 
     """
 
-    x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.floating[Any]]; y_norm: NDArray[np.floating[Any]]
-    x_min: RealNum; x_max: RealNum; x_range: RealNum; y_min: RealNum; y_max: RealNum; y_range: RealNum
+    x_vals: nparray; y_vals: nparray; x_norm: NDArray[np.float64]; y_norm: NDArray[np.float64]
+    x_min: RealScalar; x_max: RealScalar; x_range: RealScalar; y_min: RealScalar; y_max: RealScalar; y_range: RealScalar
     best_fit: Fit1DResult | None; best_fit_criteria: tuple[str, ...]; peak: PeakResult | None
     best_fit_criterion: str; all_fits: list[Fit1DResult]; selected_funcs: tuple[Callable, ...]
     functions: tuple[Callable, ...] = (gaussian_f, parabola_f, gaussian_leveled_f, lorentzian_f, line_f, sech_f, bump_f,
@@ -93,9 +92,9 @@ class PeakFit1D():
         Parameters
         ----------
         x : RealSeq | nparray
-            RealSeq = Sequence[Real] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
+            RealSeq = Sequence[RealScalar] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
         y : RealSeq | nparray
-            RealSeq = Sequence[Real] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
+            RealSeq = Sequence[RealScalar] type, nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]].
 
         Returns
         -------
@@ -108,7 +107,7 @@ class PeakFit1D():
 
         """
         # Convert common sequence types to numpy arrays
-        x = np.asarray(x) if isinstance(x, Sequence) else x  # Note: Runtime check cannot be done on Generic type (Sequence[Real])
+        x = np.asarray(x) if isinstance(x, Sequence) else x  # Note: Runtime check cannot be done on Generic type (Sequence[RealScalar])
         y = np.asarray(y) if isinstance(y, Sequence) else y
         # Checking input data for consistency - expect only 1D arrays - vectors (or 2D array with single column provided)
         x_data_parsed, y_data_parsed = False, False
@@ -184,7 +183,7 @@ class PeakFit1D():
     def find_best_fit(self, verbose: bool = False, plot_best_fit: bool = False, plot_norm_best_fit: bool = False,
                       selection_criterion: str = "RMSE", include_funcs: tuple[Callable, ...] | None = None,
                       exclude_funcs: tuple[Callable, ...] | None = None, filter_spikes: bool = False,
-                      filter_line_fit: bool = False) -> tuple[Fit1DResult, PeakResult] | tuple[None, None]:
+                      filter_line_fit: bool = False) -> tuple[Fit1DResult | None, PeakResult | None]:
         """
         Fit in a loop candidate functions for X, Y normalized data and select the best fit.
 
@@ -233,7 +232,7 @@ class PeakFit1D():
 
         Returns
         -------
-        tuple[Fit1DResult, PeakResult] | tuple[None, None]
+        tuple[Fit1DResult | None, PeakResult | None]
             1st dataclass (Fit1DResult) contain best fit function result, 2nd PeakResult - peak searching result. \n
             Fit1DResult's attributes (as Fit1DResult.attribute): function: Callable - fitted callable function; \n
             params: NDArray[np.floating[Any]] - fitted parameters; \n
@@ -315,7 +314,7 @@ class PeakFit1D():
             elif self.best_fit_criterion == "MAE":
                 self.all_fits.sort(key=lambda x: x.mae)
             elif self.best_fit_criterion == "IC":
-                self.all_fits.sort(key=lambda x: x.aicc)
+                self.all_fits.sort(key=lambda x: x.aicc if x.aicc is not None else np.inf)  # with fallback check and option for mypy
             self.best_fit = self.all_fits[0]  # best function after implemented above sorting based on the provided criteria
             peak_params = get_peak(self.best_fit.function, self.best_fit.params); best_f_name = self.best_fit.function.__name__
             if peak_params[0]:
@@ -587,18 +586,18 @@ class PeakFit1D():
         plt.legend(loc='best'); plt.tight_layout()
 
     # %% Data transformers
-    def normalize_x(self, x: Real | nparray) -> Real | nparray:
+    def normalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
         """
         Normalize new (input) x values using the provided on the initialization data to the range [0, 1].
 
         Parameters
         ----------
-        x : Real | nparray
-            Either Real number or numpy array.
+        x : RealScalar | nparray
+            Either RealScalar number or numpy array.
 
         Returns
         -------
-        Real | nparray
+        RealScalar | nparray
             Normalized data.
 
         Raises
@@ -624,35 +623,35 @@ class PeakFit1D():
                 raise ValueError("\nX is NaN")
         return (x - self.x_min) / self.x_range
 
-    def denormalize_x(self, x: Real | nparray) -> Real | nparray:
+    def denormalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
         """
         Return denormalized (from range [0, 1]) x using originally provided X data range.
 
         Parameters
         ----------
-        x : Real | nparray
-            Either Real number or numpy array.
+        x : RealScalar | nparray
+            Either RealScalar number or numpy array.
 
         Returns
         -------
-        Real | nparray
+        RealScalar | nparray
             Denormalized input value(-s) by using of initial X range.
 
         """
         return x*self.x_range + self.x_min
 
-    def normalize_y(self, y: Real | nparray) -> Real | nparray:
+    def normalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """
         Normalize new (input) y values using the provided on the initialization data to the range [0, 1].
 
         Parameters
         ----------
-        y : Real | nparray
-            Either Real number or numpy array.
+        y : RealScalar | nparray
+            Either RealScalar number or numpy array.
 
         Returns
         -------
-        Real | nparray
+        RealScalar | nparray
             Normalized data.
 
         Raises
@@ -679,30 +678,30 @@ class PeakFit1D():
                     raise ValueError("\nY is NaN")
             return (y - self.y_min) / self.y_range
         else:
-            if isinstance(y, Real):
+            if isinstance(y, RealScalar):
                 return type(y)(0)  # like explicitly int(0) or float(0)
             elif isinstance(y, np.ndarray):
                 return np.zeros_like(y)
 
-    def denormalize_y(self, y: Real | nparray) -> Real | nparray:
+    def denormalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """
         Return denormalized y using originally provided Y data range.
 
         Parameters
         ----------
-        y : Real | nparray
-            Either Real number or numpy array.
+        y : RealScalar | nparray
+            Either RealScalar number or numpy array.
 
         Returns
         -------
-        Real | nparray
+        RealScalar | nparray
             Denormalized input value(-s) by using of initial Y range.
 
         """
         return y*self.y_range + self.y_min
 
     # %% Transform y = f(x) results
-    def interpolate_y(self, x: Real | nparray) -> Real | nparray | None:
+    def interpolate_y(self, x: RealScalar | nparray) -> RealScalar | nparray | None:
         """
         Get for raw input (not normalized) values the raw output from the fitted function values with same scale as original Y values.
 
@@ -710,12 +709,12 @@ class PeakFit1D():
 
         Parameters
         ----------
-        x : Real | nparray
+        x : RealScalar | nparray
             Values for which fitted function calculated.
 
         Returns
         -------
-        Real | nparray | None
+        RealScalar | nparray | None
             Output Y values from Y = f(X) where f - best fitted function.
 
         """
@@ -807,7 +806,7 @@ class PeakFit1D():
             Sorted array in ascending order if it has all unique elements or initial array.
 
         """
-        is_ascending = np.all(x[1:] > x[:-1]); x_return = x
+        is_ascending = bool(np.all(x[1:] > x[:-1])); x_return = x
         if not is_ascending:
             is_unique = np.unique(x).size == x.size
             if is_unique:
@@ -815,7 +814,7 @@ class PeakFit1D():
                 if np.all(x_rev[1:] > x_rev[:-1]):  # simple reverse helps to make an ascending order
                     is_ascending = True; x_return = x_rev
                 else:  # sorting is required
-                    x_return = np.sort(x, kind='stable'); is_ascending = True
+                    x_return = np.sort(x, kind='stable'); is_ascending = True  # type: ignore
         return is_ascending, x_return
 
     @staticmethod

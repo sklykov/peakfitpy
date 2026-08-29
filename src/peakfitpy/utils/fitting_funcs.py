@@ -8,8 +8,10 @@ Symbolic definitions of functions for fitting + associated properties calculatio
 import warnings
 from collections.abc import Callable, Sequence
 from math import acosh, e, log, pi, sqrt
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.optimize import minimize_scalar
 from scipy.stats import exponnorm
 
@@ -39,9 +41,13 @@ generic_f_names = ("rayleigh_pdf_f", "rayleigh_pdf_mirrored_f", "cubic_polynomia
 
 tol = 1e-6  # ultimately is zero for the X and Y ranges laying within [0.0, 1.0]
 
+# Type annotations
+FloatArray = NDArray[np.floating[Any]]
+FitParams = Sequence[float] | NDArray[np.floating[Any]]
+
 
 # %% Function def-s
-def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarray | float:
+def parabola_f(X: FloatArray | float, a: float, b: float, c: float) -> FloatArray | float:
     """
     Callable parabola function for fitting.
 
@@ -49,7 +55,7 @@ def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarra
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     a : float
         Coefficient on x^2.
@@ -60,14 +66,14 @@ def parabola_f(X: np.ndarray | float, a: float, b: float, c: float) -> np.ndarra
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = a*X^2 + b*X + c.
 
     """
     return a*X*X + b*X + c
 
 
-def gaussian_f(X: np.ndarray | float, k: float, b: float, c: float) -> np.ndarray | float:
+def gaussian_f(X: FloatArray | float, k: float, b: float, c: float) -> FloatArray | float:
     """
     Parametric Gaussian function for fitting with zero asymptotic minimal Y value.
 
@@ -76,7 +82,7 @@ def gaussian_f(X: np.ndarray | float, k: float, b: float, c: float) -> np.ndarra
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         See equation.
@@ -87,14 +93,14 @@ def gaussian_f(X: np.ndarray | float, k: float, b: float, c: float) -> np.ndarra
 
     Returns
     -------
-    np.ndarray
+    FloatArray
         Y = k*exp((-(X-b)^2)/2*c^2).
 
     """
     return k*np.exp(-(np.power(X-b, 2))/(2.0*(c**2)))
 
 
-def gaussian_leveled_f(X: np.ndarray | float, k: float, b: float, c: float, d: float) -> np.ndarray | float:
+def gaussian_leveled_f(X: FloatArray | float, k: float, b: float, c: float, d: float) -> FloatArray | float:
     """
     Parametric Gaussian function with fitting of non-zero level (asymptotic minimal Y value).
 
@@ -102,7 +108,7 @@ def gaussian_leveled_f(X: np.ndarray | float, k: float, b: float, c: float, d: f
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         See equation.
@@ -115,14 +121,14 @@ def gaussian_leveled_f(X: np.ndarray | float, k: float, b: float, c: float, d: f
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*exp((-(X-b)^2)/2*c^2) + d.
 
     """
     return k*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
 
 
-def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float, k: float, d: float) -> np.ndarray | float:
+def generalized_gaussian_f(X: FloatArray | float, w: float, st: float, m: float, k: float, d: float) -> FloatArray | float:
     """
     Parametric generalized (with arbitrary within exp) Gaussian function.
 
@@ -130,7 +136,7 @@ def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float,
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     w : float
         Width of distribution.
@@ -145,7 +151,7 @@ def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float,
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*exp(-|(X-m)/w|^st) + d.
 
     """
@@ -153,7 +159,7 @@ def generalized_gaussian_f(X: np.ndarray | float, w: float, st: float, m: float,
     return k*np.exp(-np.power(z, st)) + d
 
 
-def lorentzian_f(X: np.ndarray | float, a: float, b: float, k: float, d: float) -> np.ndarray | float:
+def lorentzian_f(X: FloatArray | float, a: float, b: float, k: float, d: float) -> FloatArray | float:
     """
     Parametric Lorentzian (Cauchy PDF) function for fitting.
 
@@ -162,7 +168,7 @@ def lorentzian_f(X: np.ndarray | float, a: float, b: float, k: float, d: float) 
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     a : float
         See equation (gamma value).
@@ -175,14 +181,14 @@ def lorentzian_f(X: np.ndarray | float, a: float, b: float, k: float, d: float) 
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = ((a*k) / (pi*(a^2 + (X-b)^2))) + d .
 
     """
     return ((a*k)/(pi*(a**2 + np.power(X-b, 2)))) + d
 
 
-def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
+def line_f(X: FloatArray | float, k: float, b: float)-> FloatArray | float:
     """
     Parametric Line function for fallback fitting.
 
@@ -190,7 +196,7 @@ def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Linear coefficient.
@@ -199,14 +205,14 @@ def line_f(X: np.ndarray | float, k: float, b: float)-> np.ndarray | float:
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y =  k*X + b.
 
     """
     return k*X + b
 
 
-def constant_f(X: np.ndarray | float, b: float) ->  np.ndarray | float:
+def constant_f(X: FloatArray | float, b: float) ->  FloatArray | float:
     """
     Parametric Constant Line function for fallback fitting of values without clear extreme point.
 
@@ -214,21 +220,21 @@ def constant_f(X: np.ndarray | float, b: float) ->  np.ndarray | float:
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s), placeholder.
     b : float
         y = f(0) value.
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = 0.0*X + b.
 
     """
     return line_f(X, 0.0, b)
 
 
-def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.ndarray | float:
+def sech_f(X: FloatArray | float, k: float, a: float, b: float, d: float) -> FloatArray | float:
     """
     Parametric hyperbolic secant.
 
@@ -238,7 +244,7 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Scaling parameter.
@@ -251,7 +257,7 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*exp(-|(X-b)/a|) / (exp(-2.0*|(X-b)/a|) + 1.0) + d.
 
     """
@@ -259,7 +265,7 @@ def sech_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.
     return ((k*exp_z)/(1.0 + exp_z**2)) + d
 
 
-def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.ndarray | float:
+def bump_f(X: FloatArray | float, b: float, k: float, m: float, d: float) -> FloatArray | float:
     """
     Parametric bump function.
 
@@ -269,7 +275,7 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function values.
     b : float
         Support width of a bump function.
@@ -282,7 +288,7 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*exp(b^2 / ((X-m)^2 - b^2)) + d where abs(X-m) < b else d.
 
     """
@@ -299,7 +305,7 @@ def bump_f(X: np.ndarray | float, b: float, k: float, m: float, d: float) -> np.
         return Y
 
 
-def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d: float) -> np.ndarray | float:
+def logistic_derivative_f(X: FloatArray | float, k: float, a: float, b: float, d: float) -> FloatArray | float:
     """
     Parametric derivative of logistic function.
 
@@ -309,7 +315,7 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Scaling coefficient, for normalized values default is k = 4.0 for unit height.
@@ -322,7 +328,7 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*(exp(-|(X-b)/a|) / (1.0 + exp(-|(X-b)/a|))^2) + d.
 
     """
@@ -330,7 +336,7 @@ def logistic_derivative_f(X: np.ndarray | float, k: float, a: float, b: float, d
     return k*(exp_z / np.power((1.0 + exp_z), 2)) + d
 
 
-def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: float) -> np.ndarray | float:
+def rayleigh_pdf_f(X: FloatArray | float, sigma: float, k: float, b: float, d: float) -> FloatArray | float:
     """
     Parametric Rayleigh distribution PDF function.
 
@@ -339,7 +345,7 @@ def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: f
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function values.
     sigma : float
         Scaling parameter.
@@ -352,7 +358,7 @@ def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: f
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = (k*(X-b) / sigma^2)*exp(-(X-b)^2/2*sigma^2) + d for x >= b else d.
 
     """
@@ -360,7 +366,7 @@ def rayleigh_pdf_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: f
     return np.where(X_shifted >= 0.0, ((k*X_shifted)/sigma2)*np.exp(-(X_shifted**2)/(2.0*sigma2)) + d, d)
 
 
-def rayleigh_pdf_mirrored_f(X: np.ndarray | float, sigma: float, k: float, b: float, d: float) -> np.ndarray | float:
+def rayleigh_pdf_mirrored_f(X: FloatArray | float, sigma: float, k: float, b: float, d: float) -> FloatArray | float:
     """
     Parametric mirrored Rayleigh distribution PDF function.
 
@@ -369,7 +375,7 @@ def rayleigh_pdf_mirrored_f(X: np.ndarray | float, sigma: float, k: float, b: fl
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function values.
     sigma : float
         Scaling parameter.
@@ -382,7 +388,7 @@ def rayleigh_pdf_mirrored_f(X: np.ndarray | float, sigma: float, k: float, b: fl
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = (k*(b-X) / sigma^2)*exp(-(b-X)^2/2*sigma^2) + d for x <= b else d .
 
     """
@@ -390,7 +396,7 @@ def rayleigh_pdf_mirrored_f(X: np.ndarray | float, sigma: float, k: float, b: fl
     return np.where(X_shifted >= 0.0, ((k*X_shifted)/sigma2)*np.exp(-(X_shifted**2)/(2.0*sigma2)) + d, d)
 
 
-def laplace_pdf_f(X: np.ndarray | float, m: float, b: float, k: float, d: float) -> np.ndarray | float:
+def laplace_pdf_f(X: FloatArray | float, m: float, b: float, k: float, d: float) -> FloatArray | float:
     """
     Parametric Laplace distribution PDF function.
 
@@ -399,7 +405,7 @@ def laplace_pdf_f(X: np.ndarray | float, m: float, b: float, k: float, d: float)
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     m : float
         Mean value.
@@ -412,20 +418,20 @@ def laplace_pdf_f(X: np.ndarray | float, m: float, b: float, k: float, d: float)
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*exp(-|X-m|/b) + d.
 
     """
     return k*np.exp(-np.abs(X - m)/b) + d
 
 
-def quartic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: float, e: float) -> np.ndarray | float:
+def quartic_polynomial(X: FloatArray | float, a: float, b: float, c: float, d: float, e: float) -> FloatArray | float:
     """
     Callable quartic polynomial function for fitting.
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     a : float
         Coefficient on x^4.
@@ -440,20 +446,20 @@ def quartic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: f
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = a*X^4 + b*X^3 + c*X^2 + d*X + e.
 
     """
     return a*(X**4) + b*(X**3) + c*(X**2) + d*X + e
 
 
-def cubic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: float) -> np.ndarray | float:
+def cubic_polynomial(X: FloatArray | float, a: float, b: float, c: float, d: float) -> FloatArray | float:
     """
     Callable cubic polynomial function for fitting.
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     a : float
         Coefficient on x^3.
@@ -466,14 +472,14 @@ def cubic_polynomial(X: np.ndarray | float, a: float, b: float, c: float, d: flo
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = a*X^3 + b*X^2 + c*X + d.
 
     """
     return a*(X**3) + b*(X**2) + c*X + d
 
 
-def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d: float) -> np.ndarray | float:
+def moffat_f(X: FloatArray | float, k: float, m: float, w: float, beta: float, d: float) -> FloatArray | float:
     """
     Callable Moffat function for fitting.
 
@@ -483,7 +489,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Scaling coefficient.
@@ -498,7 +504,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*((1.0 + ((X-m)/w)^2)^-beta) + d.
 
     """
@@ -506,7 +512,7 @@ def moffat_f(X: np.ndarray | float, k: float, m: float, w: float, beta: float, d
     return k*zb + d
 
 
-def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> np.ndarray | float:
+def sinc_sq_f(X: FloatArray | float, k: float, m: float, w: float, d: float) -> FloatArray | float:
     """
     Callable sinc-squared function for fitting.
 
@@ -514,7 +520,7 @@ def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> 
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Scaling coefficient.
@@ -527,7 +533,7 @@ def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> 
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*sinc((X-m)/(pi*w))^2 + d.
 
     """
@@ -535,7 +541,7 @@ def sinc_sq_f(X: np.ndarray | float, k: float, m: float, w: float, d: float) -> 
     return k*(np.sinc(z)**2) + d
 
 
-def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d: float) -> np.ndarray | float:
+def emg_f(X: FloatArray | float, k: float, m: float, sigma: float, tau: float, d: float) -> FloatArray | float:
     """
     Callable parametrized exponentially modified Gaussian distribution (EMG) PDF.
 
@@ -543,7 +549,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
 
     Parameters
     ----------
-    X : np.ndarray | float
+    X : FloatArray | float
         Function value(-s).
     k : float
         Scaling parameter.
@@ -558,7 +564,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
 
     Returns
     -------
-    np.ndarray | float
+    FloatArray | float
         Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma) + d.
 
     """
@@ -567,7 +573,7 @@ def emg_f(X: np.ndarray | float, k: float, m: float, sigma: float, tau: float, d
 
 
 # %% Define peak type and value
-def get_peak(f: Callable, fitted_params: np.ndarray) -> tuple[bool, bool, float, float]:
+def get_peak(f: Callable, fitted_params: FitParams) -> tuple[bool, bool, float, float]:
     """
     Get information of a peak (max) or minimum value for the provided function.
 
@@ -575,7 +581,7 @@ def get_peak(f: Callable, fitted_params: np.ndarray) -> tuple[bool, bool, float,
     ----------
     f : Callable
         Callable function.
-    fitted_params : np.ndarray
+    fitted_params : FitParams (Sequence[float] | NDArray[np.floating[Any]])
         Defined best (fitted) parameters of the function.
 
     Returns
@@ -732,6 +738,7 @@ def get_peak(f: Callable, fitted_params: np.ndarray) -> tuple[bool, bool, float,
                         else:
                             is_max = True; x0 = x_flat; y0 = quartic_polynomial(x_flat, a, b, c, d, e)
                 if not is_flat_extreme:
+                    roots: NDArray[np.float64]
                     roots = np.roots([4*a, 3*b, 2*c, d])  # for f'(x) = 4*a*x^3 + 3*b*x^2 + 2*c*x + d
                     # below - keep only roots with small imaginary part, the returned roots are complex and real part withing selected x range
                     real_roots = sorted([r.real for r in roots if abs(r.imag) < root_tol and x_min < r.real < x_max])
@@ -787,11 +794,11 @@ def get_peak(f: Callable, fitted_params: np.ndarray) -> tuple[bool, bool, float,
         else:
             is_definable = False
 
-    return is_definable, is_max, x0, y0
+    return is_definable, is_max, float(x0), float(y0)
 
 
 # %% Analytical FWHM
-def get_fwhm(f_name: str, w_param: float, f_params: Sequence[float] = ()) -> float:
+def get_fwhm(f_name: str, w_param: float, f_params: FitParams = ()) -> float:
     """
     Calculate analytically the FWHM based on width parameter 'w_param' or full set of fitted / used values for a specific function.
 
@@ -806,7 +813,7 @@ def get_fwhm(f_name: str, w_param: float, f_params: Sequence[float] = ()) -> flo
         e.g. for 'gaussian_f' - parameter 'c'.
     w_param : float
         Width parameter.
-    f_params : Sequence, optional
+    f_params : FitParams (Sequence[float] | NDArray[np.floating[Any]]), optional
         Required Sequence of all parameters for functions 'generalized_gaussian_f' and 'moffat_f'. The default is ().
 
     Returns
@@ -852,7 +859,7 @@ funcs_with_fwhm = ("gaussian_f", "gaussian_leveled_f", "lorentzian_f", "bump_f",
                    "rayleigh_pdf_mirrored_f", "laplace_pdf_f", "generalized_gaussian_f", "moffat_f", "sinc_sq_f")
 
 
-def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
+def get_fwhm_generic(f_name: str, f_params: FitParams) -> float | None:
     """
     Provide more generic implementation of FWHM analytical definition.
 
@@ -860,7 +867,7 @@ def get_fwhm_generic(f_name: str, f_params: Sequence[float]) -> float | None:
     ----------
     f_name : str
         Function name (Callable f.__name__).
-    f_params : Sequence[float]
+    f_params : FitParams (Sequence[float] | NDArray[np.floating[Any]])
         Fitted function parameters.
 
     Returns

@@ -2,10 +2,9 @@
 name = "peakfitpy"
 dynamic = ["version"]  # Discovering of the version by the setuptools (see below: in the 'file' or 'attr')
 authors = [
-    {name = "Sergei Klykov"},
-    {email = "sergej.klykow@gmail.com"}
+	{name = "Sergei Klykov", email = "sergej.klykow@gmail.com"}
 ]
-description = "Fitting of a curve on 2D data (y=f(x)) with a single peak for finding its properties"
+description = "Fitting of set of curves on 1D data (Y=f(X)) for finding a single peak and its properties"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
@@ -17,7 +16,10 @@ dependencies = [
     "matplotlib",
 	"scipy",
 ]
-keywords = ["2D curve fitting", "single peak properties"]
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "pytest"]
+
+keywords = ["1D curve fitting", "single peak properties"]
 
 [project.urls]  # METADATA in a wheel file will represent the data below by using pip show peakfitpy -v
 "Homepage" = "https://github.com/sklykov/peakfit"
@@ -44,7 +46,7 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 line-length = 145  # my own preference
 indent-width = 4
-target-version = "py311"
+target-version = "py310"
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B", "SIM"]
 ignore = ["E702", "E402", # used in the IDE
@@ -56,3 +58,50 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true  # mypy will warn if any of options below not valid
+warn_redundant_casts = true  # warn about unnecessary cast(): from typing import cast
+warn_unused_ignores = true  # warn about unused comments '# type: ignore'
+show_error_codes = true  # enables error code in a report
+pretty = true  # better formatted report in a console
+strict_equality = true  # checks proper usage of ==, !=, in
+no_implicit_optional = true  # throws error on: def f(x: int = None): ...
+# Note: flags below introduces too strict type checks
+check_untyped_defs = false  # mypy checks untyped expressions and tries to infer types
+
+# disable some checks which produce too many wrong results
+disable_error_code = [
+    "operator",
+    "index",
+]
+
+exclude = [
+    '^build/',
+    '^dist/',
+]
+
+# Numerical function implementations:
+# scalar / array unions create many false positive diagnostics
+[[tool.mypy.overrides]]
+module = ["peakfitpy.utils.fitting_funcs"]
+disable_error_code = [
+    "assignment",
+    "arg-type",
+    "var-annotated",
+]
+
+# Main fitting class:
+# many values are logically defined by a program state, which mypy cannot infer
+[[tool.mypy.overrides]]
+module = ["peakfitpy.peakfit"]
+disable_error_code = [
+    "union-attr",
+	"arg-type",
+	"return-value",
+]
+
+[[tool.mypy.overrides]]  # for ignoring warning about not checked imported libraries
+module = ["scipy.*",]
+ignore_missing_imports = true
