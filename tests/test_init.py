@@ -11,10 +11,9 @@ For running collected here tests, it's enough to run the command "pytest" from t
 """
 # %% Global imports
 import numpy as np
+import pytest
 
 from peakfitpy import PeakFit1D
-
-import pytest
 
 
 def test_class_initialization():
@@ -80,4 +79,9 @@ def test_class_initialization():
         
     x = np.asarray([0.8, -1.0, 0.5, 0.3, 0.2]); y = [0.0]*5
     with pytest.raises(ValueError, match="identical"):
+        PeakFit1D(x, y)
+    
+    # x = np.linspace(start=-200, stop=300, num=10**7+2); y = np.linspace(start=-400, stop=100, num=10**7+2)  # too much memory used
+    x = [0.0, 1e-8, 2e-8, 3e-8, 4e-8, 1.0]; y = [i*1.5 + 0.2 for i in range(6)]  # should give the same result
+    with pytest.raises(ValueError, match="median sampling interval of normalized X is too small"):
         PeakFit1D(x, y)

@@ -511,7 +511,7 @@ class PeakFit1D():
         None
 
         """
-        if self.best_fit is not None and self.peak is not None:
+        if self.best_fit is not None:
             fig_id = random.randint(a=0, b=999); x_plot_vals = np.linspace(start=0.0, stop=1.0, num=401)
             func_n = full_f_names.get(self.best_fit.function.__name__, "")
             if use_norm_ranges:
@@ -519,14 +519,14 @@ class PeakFit1D():
                 plt.plot(self.x_norm, self.y_norm, "ro", ms=7, label="Input Norm. Values")
 
                 plt.plot(x_plot_vals, self.best_fit.function(x_plot_vals, *self.best_fit.params), lw=3.0, label=f"Fitted {func_n}")
-                if self.peak.is_defined:
+                if self.peak is not None:
                     pl = "Found Peak" if self.peak.is_peak else "Found Valley"
                     plt.plot(self.peak.x, self.peak.y, "o", c='#45c70c', ms=9, label=pl)
             else:
                 plt.figure(f"Best fit result - Originally Scaled Values {fig_id}")
                 plt.plot(self.x_vals, self.y_vals, "ro", ms=7, label="Input Raw Values"); x_raw_scaled = self.denormalize_x(x_plot_vals)
                 plt.plot(x_raw_scaled, self.interpolate_y(x_raw_scaled), lw=3.0, label=f"Fitted {func_n}")
-                if self.peak.is_defined:
+                if self.peak is not None:
                     pl = "Found Peak" if self.peak.is_peak else "Found Valley"
                     is_peak, xp, yp = self.get_peak_values(); plt.plot(xp, yp, "o", c='#45c70c', ms=9, label=pl)
             plt.legend(loc='best'); plt.tight_layout()
@@ -585,6 +585,8 @@ class PeakFit1D():
     def normalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
         """
         Normalize new (input) x values using the provided on the initialization data to the range [0, 1].
+        
+        Note that if x as Sequence (list, tuple) will be provided, the method automatically convert it to numpy array.
 
         Parameters
         ----------
@@ -622,6 +624,8 @@ class PeakFit1D():
     def denormalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
         """
         Return denormalized (from range [0, 1]) x using originally provided X data range.
+        
+        Note that if x as Sequence (list, tuple) will be provided, the method automatically convert it to numpy array.
 
         Parameters
         ----------
@@ -634,11 +638,14 @@ class PeakFit1D():
             Denormalized input value(-s) by using of initial X range.
 
         """
+        x = np.asarray(x) if isinstance(x, Sequence) else x
         return x*self.x_range + self.x_min
 
     def normalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """
         Normalize new (input) y values using the provided on the initialization data to the range [0, 1].
+        
+        Note that if y as Sequence (list, tuple) will be provided, the method automatically convert it to numpy array.
 
         Parameters
         ----------
@@ -676,6 +683,8 @@ class PeakFit1D():
     def denormalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """
         Return denormalized y using originally provided Y data range.
+        
+        Note that if y as Sequence (list, tuple) will be provided, the method automatically convert it to numpy array.
 
         Parameters
         ----------
@@ -688,6 +697,7 @@ class PeakFit1D():
             Denormalized input value(-s) by using of initial Y range.
 
         """
+        y = np.asarray(y) if isinstance(y, Sequence) else y
         return y*self.y_range + self.y_min
 
     # %% Transform y = f(x) results
