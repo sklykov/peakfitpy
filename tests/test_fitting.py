@@ -14,6 +14,7 @@ from peakfitpy import PeakFit1D
 from peakfitpy.fit_models import (
     bump_f,
     constant_f,
+    cubic_polynomial,
     emg_f,
     gaussian_f,
     gaussian_leveled_f,
@@ -21,6 +22,8 @@ from peakfitpy.fit_models import (
     line_f,
     lorentzian_f,
     moffat_f,
+    parabola_f,
+    quartic_polynomial,
     rayleigh_pdf_f,
     sinc_sq_f,
 )
@@ -178,3 +181,26 @@ def test_linear_peak_filter():
     fr, p = pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f,
                                                                                               generalized_gaussian_f))
     assert len(pf.all_fits) == 0 and fr is None and p is None, f"Expected empty container: {pf.all_fits} and both None-s: {fr}, {p}"
+
+
+def test_special_conditions():
+    """
+    Test specific fitting conditions and functions.
+
+    Returns
+    -------
+    None
+    
+    """
+    n_points = 51
+    x = np.linspace(start=0.0, stop=1.0, num=n_points)
+    y = (x - 0.4)**4  # flat valley at 0.4
+    pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
+                                                   include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
+    condition = bf.function.__name__ == quartic_polynomial.__name__ and p.is_defined and not p.is_peak and 0.38 <= p.x <= 0.42
+    assert condition, "Specific function (x - 0.4)**4 not properly fitted, check conditions in the manual test (run_as_main.py)"
+    y = -(x-0.67)**4
+    pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
+                                                   include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
+    condition = bf.function.__name__ == quartic_polynomial.__name__ and p.is_defined and p.is_peak and 0.65 <= p.x <= 0.69
+    assert condition, "Specific function -(x-0.67)**4 not properly fitted, check conditions in the manual test (run_as_main.py)"

@@ -192,20 +192,21 @@ def get_peak(f: Callable, fitted_params: FitParams) -> tuple[bool, bool, float, 
                 x01 = (-b + sqrt(discriminant_dx))/(3.0*a); x02 = (-b - sqrt(discriminant_dx))/(3.0*a)
                 x01_in_range = 0.0 < x01 < x_max; x02_in_range = 0.0 < x02 < x_max
                 ya = cubic_polynomial(0.0, a, b, c, d); yb = cubic_polynomial(x_max, a, b, c, d)
-                # define which peak / valley is global or only local and test for both cases
-                is_max_01 = 6.0*a*x01 + 2.0*b < 0.0; y01 = cubic_polynomial(x01, a, b, c, d)
-                is_max_02 = 6.0*a*x02 + 2.0*b < 0.0; y02 = cubic_polynomial(x02, a, b, c, d)
-                is_global_x01 = x01_in_range and ((is_max_01 and y01 > ya and y01 > yb) or (not is_max_01 and y01 < ya and y01 < yb))
-                is_global_x02 = x02_in_range and ((is_max_02 and y02 > ya and y02 > yb) or (not is_max_02 and y02 < ya and y02 < yb))
-                # based on defined x1, x2 location provide an estimation of only a peak
-                if is_global_x01 and is_global_x02:
-                    is_definable = False  # ambiguous for extraction of a single peak / valley
-                elif is_global_x01 and not is_global_x02:
-                    is_max = is_max_01; x0 = x01; y0 = y01
-                elif not is_global_x01 and is_global_x02:
-                    is_max = is_max_02; x0 = x02; y0 = y02
-                else:
+                # check if the both of extreme points in range and select only the case then the curve is unimodal - has only 1 extreme point
+                if x01_in_range == x02_in_range:  # both are True or False simultaneously
                     is_definable = False
+                elif x01_in_range:
+                    is_max_01 = 6.0*a*x01 + 2.0*b < 0.0; y01 = cubic_polynomial(x01, a, b, c, d)
+                    if (is_max_01 and y01 > ya and y01 > yb) or (not is_max_01 and y01 < ya and y01 < yb):
+                        is_max = is_max_01; x0 = x01; y0 = y01
+                    else:
+                        is_definable = False
+                elif x02_in_range:
+                    is_max_02 = 6.0*a*x02 + 2.0*b < 0.0; y02 = cubic_polynomial(x02, a, b, c, d)
+                    if (is_max_02 and y02 > ya and y02 > yb) or (not is_max_02 and y02 < ya and y02 < yb):
+                        is_max = is_max_02; x0 = x02; y0 = y02
+                    else:
+                        is_definable = False
             elif abs(a) < tol:  # degenerative case - effectively, this is parabola
                 is_definable, is_max, x0, y0 = get_peak(parabola_f, (b, c, d))  # call of the method with the parabola function
             else:
@@ -244,9 +245,10 @@ def get_peak(f: Callable, fitted_params: FitParams) -> tuple[bool, bool, float, 
                             elif f2 > tol:
                                 extreme_points.append({i: "valley"})
                         # below - sort out the case of not defined extreme points or 'M' and 'W' like curves as not suitable for peaks retrieval
-                        if len(extreme_points) == 0 or len(extreme_points) == 3:
+                        # addition: also exclude 'S' shapes, check only unimodal cases where is clear peak / valley can be defined
+                        if len(extreme_points) != 1:
                             is_definable = False
-                        elif len(extreme_points) == 1:
+                        else:
                             y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
                             y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
                             i_xr = next(iter(extreme_points[0]))  # recorded index of found extreme point as the single key from dictionary
@@ -257,26 +259,6 @@ def get_peak(f: Callable, fitted_params: FitParams) -> tuple[bool, bool, float, 
                                 is_max = False; x0 = xr; y0 = y_xr
                             else:
                                 is_definable = False  # local peak / valley only
-                        elif len(extreme_points) == 2:  # peak and valley candidates, one of them is only local
-                            y_a = round(quartic_polynomial(x_min, a, b, c, d, e), n_digits)
-                            y_b = round(quartic_polynomial(x_max, a, b, c, d, e), n_digits)
-                            i_xr1 = next(iter(extreme_points[0])); i_xr2 = next(iter(extreme_points[1]))
-                            xr1 = unique_roots[i_xr1]; y_xr1 = round(quartic_polynomial(xr1, a, b, c, d, e), n_digits)
-                            xr2 = unique_roots[i_xr2]; y_xr2 = round(quartic_polynomial(xr2, a, b, c, d, e), n_digits)
-                            is_global_xr1 = ((extreme_points[0][i_xr1] == "peak" and y_xr1 > y_a and y_xr1 > y_b)
-                                            or (extreme_points[0][i_xr1] == "valley" and y_xr1 < y_a and y_xr1 < y_b))
-                            is_global_xr2 = ((extreme_points[1][i_xr2] == "peak" and y_xr2 > y_a and y_xr2 > y_b)
-                                            or (extreme_points[1][i_xr2] == "valley" and y_xr2 < y_a and y_xr2 < y_b))
-                            if is_global_xr1 and is_global_xr2:
-                                is_definable = False
-                            elif is_global_xr1 and not is_global_xr2:
-                                is_max = extreme_points[0][i_xr1] == "peak"; x0 = xr1; y0 = y_xr1
-                            elif not is_global_xr1 and is_global_xr2:
-                                is_max = extreme_points[1][i_xr2] == "peak"; x0 = xr2; y0 = y_xr2
-                            else:
-                                is_definable = False
-                        else:
-                            is_definable = False
             else:  # degenerative case - effectively, this is cubic polynomial
                 is_definable, is_max, x0, y0 = get_peak(cubic_polynomial, (b, c, d, e))  # call of the method with the cubic function
         else:

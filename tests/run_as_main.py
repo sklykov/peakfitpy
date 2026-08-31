@@ -11,6 +11,7 @@ from peakfitpy import PeakFit1D
 from peakfitpy.fit_models import (
     bump_f,
     constant_f,
+    cubic_polynomial,
     emg_f,
     gaussian_f,
     gaussian_leveled_f,
@@ -19,6 +20,7 @@ from peakfitpy.fit_models import (
     lorentzian_f,
     moffat_f,
     parabola_f,
+    quartic_polynomial,
     rayleigh_pdf_f,
     sinc_sq_f,
 )
@@ -40,7 +42,8 @@ test_sorting = False  # tests the sorting of input X and Y data during initializ
 test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
-test_noise_recover = True
+test_flat_peak = False   # test specific case for quartic polynomial for its stability
+test_noise_recover = False  # for later experimenting with the stability against the noise  
 
 
 # %% Only for development purposes
@@ -69,7 +72,7 @@ if __name__ == "__main__":
         a, b, c = default_f_params[parabola_f.__name__]
         y = parabola_f(x, -a*1.64 - 0.27, b*3.0 - 0.15, c + 5.32)
         y = PeakFit1D.add_awgn(y, noise_fraction=4e-2)  # add Gaussian noise
-        pf = PeakFit1D(x, y); pf.find_best_fit(verbose=True, plot_best_fit=True)
+        pf = PeakFit1D(x, y); pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="IC")
 
     # Edge case - 2 points fitting => line
     if test_line:
@@ -165,6 +168,19 @@ if __name__ == "__main__":
         # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
         pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f, generalized_gaussian_f),
                          verbose=True, plot_best_fit=True)
+    
+    if test_flat_peak:
+        n_points = 51
+        x = np.linspace(start=0.0, stop=1.0, num=n_points)
+        y = (x - 0.4)**4  # flat valley at 0.4
+        pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
+                                                       include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
+        bf_n = bf.function.__name__
+        # assert bf_n == quartic_polynomial.__name__ and p.is_defined and not p.is_peak and 0.38 <= p.x <= 0.42
+        y = -(x-0.67)**4
+        pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
+                                                       include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
+        # assert bf_n == quartic_polynomial.__name__ and p.is_defined and p.is_peak and 0.65 <= p.x <= 0.69
 
     # Check the recovery rate of fittings
     if test_noise_recover:

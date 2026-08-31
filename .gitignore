@@ -1,7 +1,9 @@
 # Personal
 .vscode/
-Docs/
 Documents/
+*.pdf
+*.jpg
+*.jpeg
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
