@@ -8,7 +8,7 @@ Test the selection / deselection of functions for fitting loop.
 """
 # %% Global imports
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import constant_f, emg_f, gaussian_f, gaussian_leveled_f
+from peakfitpy.fit_models import constant_f, emg_f, gaussian_f, gaussian_leveled_f
 
 
 # %% Test function

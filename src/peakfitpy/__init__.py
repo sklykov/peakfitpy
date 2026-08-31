@@ -8,10 +8,10 @@ The "peakfitpy" package provides automatic model fitting and single peak/valley 
 
 """
 
-__version__ = "0.0.1"  # Straightforward way of specifying package version and including it to the package attributes
+__version__ = "0.1.0"  # Straightforward way of specifying package version and including it to the package attributes
 
 # Universal logic for making all main classes and functions available after calling 'from peakfitpy import *'
 from .peakfit import PeakFit1D
-from .utils.fitting_result import Fit1DResult, PeakResult
+from .results import Fit1DResult, PeakResult
 
 __all__ = ['PeakFit1D', 'Fit1DResult', 'PeakResult']

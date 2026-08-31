@@ -11,7 +11,6 @@ import warnings
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from copy import deepcopy
-from typing import Any
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -20,43 +19,43 @@ from numpy.polynomial import Polynomial
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
-from .utils.fitting_funcs import (
+from .fit_models import (
     bump_f,
     constant_f,
     cubic_polynomial,
-    default_f_params,
     emg_f,
-    full_f_names,
-    funcs_with_fwhm,
     gaussian_f,
     gaussian_leveled_f,
     generalized_gaussian_f,
-    generic_f_names,
-    get_fwhm_generic,
-    get_peak,
     laplace_pdf_f,
     line_f,
     logistic_derivative_f,
     lorentzian_f,
     moffat_f,
     parabola_f,
-    params_boundaries,
-    params_w_min_index,
     quartic_polynomial,
     rayleigh_pdf_f,
     rayleigh_pdf_mirrored_f,
     sech_f,
     sinc_sq_f,
+)
+from .results import Fit1DResult, PeakResult
+from .utils.model_utils import (
+    default_f_params,
+    full_f_names,
+    funcs_with_fwhm,
+    generic_f_names,
+    get_fwhm_generic,
+    get_peak,
+    params_boundaries,
+    params_w_min_index,
     symmetric_f_names,
     tol,
 )
-from .utils.fitting_result import Fit1DResult, PeakResult
+from .utils.typing_utils import RealScalar, RealSeq, nparray
 
 # %% Module parameters
 __docformat__ = "numpydoc"
-RealScalar = int | float | np.floating[Any] | np.integer[Any]
-RealSeq = Sequence[RealScalar]  # for providing type hints accepting types like tuple[float], list[int]
-nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 
 
 # %% Main class def.
@@ -170,7 +169,7 @@ class PeakFit1D():
         if self.y_range != 0.0:
             self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
         else:
-            raise ValueError("\nProvided values are identical (constant)")
+            raise ValueError("\nProvided Y values are identical (constant)")
         # Initialize class instance variables
         self.function_params = {name: default_f_params[name].copy() for name in self.function_names}  # fail if no default param-s for a f()
         self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""; self.selected_funcs = ()

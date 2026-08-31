@@ -8,10 +8,9 @@ Run some tests for peakfitpy library directly in this script without pytest usag
 import numpy as np
 
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import (
+from peakfitpy.fit_models import (
     bump_f,
     constant_f,
-    default_f_params,
     emg_f,
     gaussian_f,
     gaussian_leveled_f,
@@ -22,6 +21,9 @@ from peakfitpy.utils.fitting_funcs import (
     parabola_f,
     rayleigh_pdf_f,
     sinc_sq_f,
+)
+from peakfitpy.utils.model_utils import (
+    default_f_params,
 )
 
 plot_all_curves_with_defaults = True  # for checking default parameters consistency

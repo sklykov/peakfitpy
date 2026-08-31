@@ -14,6 +14,8 @@ import numpy as np
 
 from peakfitpy import PeakFit1D
 
+import pytest
+
 
 def test_class_initialization():
     """
@@ -66,3 +68,16 @@ def test_class_initialization():
         raise AssertionError("\nAccepted X with complex number in it")
     except ValueError:
         pass
+    
+    # Conceptually better way of writing tests below - using the pattern and error type to catch automatically
+    x = np.asarray([0.8, -1.0, 0.5, 0.3, np.nan]); y = [i*1.5 + 0.2 for i in range(5)]
+    with pytest.raises(ValueError, match="NaN"):
+        PeakFit1D(x, y)
+    
+    x = np.asarray([0.8, -1.0, 0.5, 0.3, 0.2]); y = [i*1.5 + 0.2 for i in range(4)]; y.append(np.inf)
+    with pytest.raises(ValueError, match="infinite"):
+        PeakFit1D(x, y)
+        
+    x = np.asarray([0.8, -1.0, 0.5, 0.3, 0.2]); y = [0.0]*5
+    with pytest.raises(ValueError, match="identical"):
+        PeakFit1D(x, y)

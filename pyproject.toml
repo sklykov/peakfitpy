@@ -62,7 +62,7 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.10"
 warn_unused_configs = true  # mypy will warn if any of options below not valid
 warn_redundant_casts = true  # warn about unnecessary cast(): from typing import cast
 warn_unused_ignores = true  # warn about unused comments '# type: ignore'
@@ -87,7 +87,7 @@ exclude = [
 # Numerical function implementations:
 # scalar / array unions create many false positive diagnostics
 [[tool.mypy.overrides]]
-module = ["peakfitpy.utils.fitting_funcs"]
+module = ["peakfitpy.utils.model_utils"]
 disable_error_code = [
     "assignment",
     "arg-type",

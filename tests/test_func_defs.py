@@ -8,7 +8,8 @@ Test that the function definitions are consistently imported in PeakFit1D class.
 """
 # %% Global imports
 from peakfitpy import PeakFit1D
-from peakfitpy.utils.fitting_funcs import constant_f, default_f_params, full_f_names
+from peakfitpy.fit_models import constant_f
+from peakfitpy.utils.model_utils import default_f_params, full_f_names
 
 
 # %% Test function

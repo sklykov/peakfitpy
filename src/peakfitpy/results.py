@@ -8,10 +8,8 @@ Wrap fitting results.
 # %% Imports
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
+from .utils.typing_utils import FloatArray
 
 
 # %% Fitting results wrapping class
@@ -21,9 +19,9 @@ class Fit1DResult():
     """Dataclass for storing fitting results in its named variables."""
 
     function: Callable
-    params: NDArray[np.floating[Any]]  # fitted parameters
-    pcov: NDArray[np.floating[Any]] | None  # store report of curve_fit method
-    perr: NDArray[np.floating[Any]] | None  # for storing np.sqrt(np.diag(pcov)), all found parameters ~ +- perr
+    params: FloatArray  # fitted parameters
+    pcov: FloatArray | None  # store report of curve_fit method
+    perr: FloatArray | None  # for storing np.sqrt(np.diag(pcov)), all found parameters ~ +- perr
     rmse: float
     mae: float
     aicc: float | None
