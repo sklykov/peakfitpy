@@ -43,6 +43,7 @@ test_needle_spike = False  # test filtering out needle-like peak and criterion t
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
+test_results_values = True  # test the results scaling and correctness of fitting
 test_noise_recover = False  # for later experimenting with the stability against the noise  
 
 
@@ -106,7 +107,8 @@ if __name__ == "__main__":
     if test_pure_noise:
         x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
         y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
-        pf = PeakFit1D(x, y); pf.find_best_fit(True, True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
+        pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, plot_best_fit=True, selection_criterion="IC")
+        is_peak, xp, yp = pf.get_peak_values()
         if is_peak is not None:
             print("X peak within X range:", 0.0 < xp < 1.0,
                   "\nY peak within min - max dataset values (no needle-like):", 0.85*y.min() <= yp <= 1.15*y.max())
@@ -163,15 +165,14 @@ if __name__ == "__main__":
     if test_linear_peak_filter:
         n_points = 5; rng = np.random.default_rng(n_points+2)
         x = np.linspace(start=-2.5, stop=1.5, num=n_points)*1e-2
-        y = 5.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
+        y = 3.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
         pf = PeakFit1D(x, y)
         # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
-        pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f, generalized_gaussian_f),
+        pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_f, generalized_gaussian_f),
                          verbose=True, plot_best_fit=True)
     
     if test_flat_peak:
-        n_points = 51
-        x = np.linspace(start=0.0, stop=1.0, num=n_points)
+        n_points = 51; x = np.linspace(start=0.0, stop=1.0, num=n_points)
         y = (x - 0.4)**4  # flat valley at 0.4
         pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                                        include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
@@ -181,7 +182,16 @@ if __name__ == "__main__":
         pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                                        include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
         # assert bf_n == quartic_polynomial.__name__ and p.is_defined and p.is_peak and 0.65 <= p.x <= 0.69
-
+    
+    if test_results_values:
+        n_points = 101; x = np.linspace(start=0.0, stop=1.0, num=n_points)*1E2 + 5.0
+        k, b, c, d = default_f_params[gaussian_leveled_f.__name__]["peak"]
+        y = gaussian_leveled_f(x, k-2.0, b+22.5, c*50.0, d+16.0)
+        pf = PeakFit1D(x, y)
+        # Tested: gaussian_leveled_f: RMSE = 0.0, lorentzian_f: RMSE = 0.040933, generalized_gaussian_f: RMSE = 0.0
+        bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
+                                 include_funcs=(generalized_gaussian_f, ))
+        
     # Check the recovery rate of fittings
     if test_noise_recover:
         pass

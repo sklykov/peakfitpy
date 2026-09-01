@@ -103,14 +103,17 @@ def test_basic_fitting():
 
     # Test that for heavily-disturbed by AWGN noise data the fitted peak / valley isn't needle-like
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
-    y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=25)
-    pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak, xp, yp = pf.get_peak_values()
+    y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=20)
+    pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
+    assert is_peak is None, "No peak should be fitted"
+    y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=32)
+    pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
     if is_peak is not None:
         assert 0.0 < xp < 1.0 and 0.85*y.min() <= yp <= 1.15*y.max(), ("\nFitting of noisy data results in peak: {xp, yp} - what not"
                                                                        + f" in [0.0, 1.0] X and {0.85*y.min(), 1.15*y.max()} Y ranges")
 
     # Test robustness against inversion and shuffling of input data
-    x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]
+    x = np.linspace(0.0, 1.0); a, b, k, d = default_f_params[lorentzian_f.__name__]["peak"]
     y = lorentzian_f(x, a, b-0.12, k-5.5, d+0.1); y = PeakFit1D.add_awgn(y, noise_fraction=8.5e-2, seed=101)
     pf = PeakFit1D(x, y); pf.find_best_fit(); is_peak_d, xp_d, yp_d = pf.get_peak_values()
     x = x[::-1]; y = y[::-1]  # inverse order
@@ -175,11 +178,10 @@ def test_linear_peak_filter():
     """
     n_points = 5; rng = np.random.default_rng(n_points+2)
     x = np.linspace(start=-2.5, stop=1.5, num=n_points)*1e-2
-    y = 5.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
+    y = 3.0*np.linspace(start=1.5, stop=-1.5, num=n_points) + rng.random(size=n_points)
     pf = PeakFit1D(x, y)
     # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
-    fr, p = pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_leveled_f,
-                                                                                              generalized_gaussian_f))
+    fr, p = pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_f, generalized_gaussian_f))
     assert len(pf.all_fits) == 0 and fr is None and p is None, f"Expected empty container: {pf.all_fits} and both None-s: {fr}, {p}"
 
 

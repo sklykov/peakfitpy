@@ -33,13 +33,20 @@ from ..fit_models import (
 )
 from .typing_utils import FitParams
 
-default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "gaussian_leveled_f": [1.0, 0.5, 0.15, 0.0],
-                    "lorentzian_f": [0.1, 0.5, pi*0.1, 0.0], "line_f": [0.0, 0.5], "sech_f": [2.0, 0.125, 0.5, 0.0],
-                    "bump_f": [0.5, e, 0.5, 0.0], "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0],
-                    "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0],
-                    "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
-                    "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "generalized_gaussian_f": [0.2, 3.5, 0.5, 1.0, 0.0],
-                    "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], "constant_f": [0.5],
+default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
+                    "line_f": [0.0, 0.5], "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "constant_f": [0.5],
+                    "gaussian_leveled_f": {"peak": [1.0, 0.5, 0.15, 0.0], "valley": [-1.0, 0.5, 0.15, 1.0]},
+                    "lorentzian_f": {"peak": [0.1, 0.5, pi*0.1, 0.0], "valley": [0.1, 0.5, -pi*0.1, 0.0]}, 
+                    "sech_f": [2.0, 0.125, 0.5, 0.0],
+                    "bump_f": [0.5, e, 0.5, 0.0], 
+                    "logistic_derivative_f": [4.0, 0.125, 0.5, 0.0], 
+                    "rayleigh_pdf_f": [0.25, 0.41, 0.0, 0.0],
+                    "laplace_pdf_f": [0.5, 0.125, 1.0, 0.0], 
+                    "emg_f": [0.37, 0.35, 0.10, 0.15, 0.0],
+                    "rayleigh_pdf_mirrored_f": [0.25, 0.41, 1.0, 0.0], 
+                    "generalized_gaussian_f": {"peak": [0.2, 3.5, 0.5, 1.0, 0.0], "valley": [0.2, 3.5, 0.5, -1.0, 1.0]},
+                    "moffat_f": [1.0, 0.5, 0.15, 2.5, 0.0], 
+                    "sinc_sq_f": [1.0, 0.5, 0.075, 0.0], 
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
@@ -402,23 +409,26 @@ w_max_moffat = fwhm_max/get_fwhm("moffat_f", 1.0, [1.0, 0.5, 1.0, 0.5, 0.0])
 w_sinc_sq = fwhm_max/get_fwhm("sinc_sq_f", 1.0)
 w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts
 
-params_boundaries = {"gaussian_f": ([-np.inf, x_min, tol], [np.inf, x_max, w_max_gaussian]),
-                     "gaussian_leveled_f" : ([-np.inf, x_min, tol, d_min], [np.inf, x_max, w_max_gaussian, d_max]),
-                     "lorentzian_f": ([tol, x_min, -np.inf, d_min], [w_max_lorentzian, x_max, np.inf, d_max]),
+params_boundaries = {"gaussian_f": ([tol, x_min, tol], [np.inf, x_max, w_max_gaussian]),
+                     "gaussian_leveled_f" : {"peak": ([tol, x_min, tol, d_min], [np.inf, x_max, w_max_gaussian, d_max]),
+                                             "valley": ([-np.inf, x_min, tol, d_min], [tol, x_max, w_max_gaussian, d_max])},
+                     "lorentzian_f": {"peak": ([tol, x_min, tol, d_min], [w_max_lorentzian, x_max, np.inf, d_max]) ,
+                                      "valley": ([tol, x_min, -np.inf, d_min], [w_max_lorentzian, x_max, tol, d_max])},
                      "sech_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_sech, x_max, d_max]),
                      "bump_f": ([tol, -np.inf, x_min, d_min], [w_max_bump, np.inf, x_max, d_max]),
                      "logistic_derivative_f": ([-np.inf, tol, x_min, d_min], [np.inf, w_max_logistic, x_max, d_max]),
                      "rayleigh_pdf_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
                      "rayleigh_pdf_mirrored_f": ([tol, -np.inf, x_min, d_min], [w_max_rayleigh, np.inf, x_max, d_max]),
                      "laplace_pdf_f": ([x_min, tol, -np.inf, d_min], [x_max, w_max_laplace, np.inf, d_max]),
-                     "generalized_gaussian_f": ([tol, 1.0, x_min, -np.inf, d_min], [w_max_gaussian_gen, 10.0, x_max, np.inf, d_max]),
+                     "generalized_gaussian_f": {"peak": ([tol, 1.0, x_min, tol, d_min], [w_max_gaussian_gen, 10.0, x_max, np.inf, d_max]),
+                                                "valley": ([tol, 1.0, x_min, -np.inf, d_min], [w_max_gaussian_gen, 10.0, x_max, tol, d_max])},
                      "moffat_f": ([-np.inf, x_min, tol, 0.5, d_min], [np.inf, x_max, w_max_moffat, 10.0, d_max]),
                      "sinc_sq_f": ([-np.inf, 0.0, tol, d_min], [np.inf, 1.0, w_sinc_sq, d_max]),
                      "emg_f": ([-np.inf, x_min, tol, tol, d_min], [np.inf, x_max, w_emg_g, w_emg_tau, d_max]),
                      "constant_f": ([0.0], [1.0]),
                      }
 
-# Define the index of width min parameter to correct for using the actual sampling estimation
+# Define the index of min width parameter to correct for using the actual sampling estimation (min FWHM from data tuning)
 params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 0, "sech_f": 1, "bump_f": 0,
                       "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1,
                       "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3),

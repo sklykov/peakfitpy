@@ -257,9 +257,13 @@ class PeakFit1D():
             for function in self.selected_funcs:
                 f_name = function.__name__  # string form of the function name
                 params = self.function_params[f_name].copy()  # used default starting fitting parameters (centered peaks)
-                # get the boundaries for fitting parameters for both ranges
-                params_limits = deepcopy(params_boundaries.get(f_name, None))
-                params_len = len(params)  # number of parameters in a function for checking if there is enough input X, Y for fitting
+                aicc = None; mae = np.nan; rmse = np.nan; pk = "peak"; vk = "valley"; pcov = None; perr = None  # default values
+                if isinstance(params, list):  # either all default parameters stored as a list, or as dict with 2 variants
+                    params_len = len(params)
+                elif isinstance(params, dict):
+                    params_len = len(params[pk])  # use one of the variant
+                params_limits = deepcopy(params_boundaries.get(f_name, None))  # get the boundaries for fitting parameters for both ranges
+                # the fitting condition: number of parameters in a function for checking if there is enough input X, Y for fitting
                 if params_len <= self.x_norm.shape[0]:  # X values should be not exceeding number of function parameters
                     try:
                         if params_limits is None:
@@ -268,28 +272,75 @@ class PeakFit1D():
                                 coef = Polynomial.fit(self.x_norm, self.y_norm, deg=p).convert().coef  # get coefficients 1*c + b*x^2 ...
                                 coef = np.pad(coef, (0, p + 1 - coef.size))  # pad operation is necessary, since coef can be trimmed
                                 fitted_f_params = coef[::-1]  # convert from c, b, a coefficients order to a, b, c
-                                pcov = None; perr = None  # default value for pcov parameter
                             else:
                                 # unrestrained fitting for any function that doesn't provide the limits on its parameters
-                                fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
-                                perr = np.sqrt(np.diag(pcov))
+                                if isinstance(params, list):
+                                    fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
+                                # probe both 'peak' and 'valley' default parameters and select best curve
+                                elif isinstance(params, dict):
+                                    fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk])
+                                    fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk])
+                                    y_f_p = function(self.x_norm, *fitted_f_params_p); y_f_v = function(self.x_norm, *fitted_f_params_v)
+                                    diff_y_p = self.y_norm - y_f_p; diff_y_v = self.y_norm - y_f_v
+                                    rmse_p = np.sqrt(np.mean((diff_y_p)**2)); rmse_v = np.sqrt(np.mean((diff_y_v)**2))
+                                    if rmse_p > rmse_v:
+                                        fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
+                                    else:
+                                        fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_v; diff_y = diff_y_p
+                                    mae = np.mean(np.abs(diff_y))
                         else:
                             # Sampling-based minimum width corresponding to approx. FWHM_min ~= 2*x_sampling for most supported profiles
                             if f_name in params_w_min_index:
-                                index = params_w_min_index.get(f_name, None)
-                                if isinstance(index, int):
+                                ix = params_w_min_index.get(f_name, None)
+                                if isinstance(ix, int):
                                     # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Gaussian fitting (~= max)
-                                    params_limits[0][index] = 1.975*self.x_sampling*params_limits[1][index]
-                                    params[index] = params_limits[0][index] if params[index] < params_limits[0][index] else params[index]
-                                elif isinstance(index, tuple):  # special case of EMG distribution, get the estimations
-                                    i, j = index; params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
-                                    params[i] = self.x_sampling if params[i] < self.x_sampling else params[i]
-                                    params[j] = self.x_sampling if params[j] < self.x_sampling else params[j]
-                            # Below - restricted on parameters fitting using 'trf' method by default
-                            fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
+                                    if isinstance(params, list):
+                                        params_limits[0][ix] = 1.975*self.x_sampling*params_limits[1][ix]
+                                        params[ix] = params_limits[0][ix] if params[ix] < params_limits[0][ix] else params[ix]
+                                    # Limits calculated repeadetly for peak and valley case (pk and vk keys)
+                                    elif isinstance(params, dict):
+                                        params_limits[pk][0][ix] = 1.975*self.x_sampling*params_limits[pk][1][ix]
+                                        params_limits[vk][0][ix] = 1.975*self.x_sampling*params_limits[vk][1][ix]
+                                        lim_p = params_limits[pk][0][ix]; lim_v = params_limits[vk][0][ix]
+                                        params[pk][ix] = lim_p if params[pk][ix] < lim_p else params[pk][ix]
+                                        params[vk][ix] = lim_v if params[vk][ix] < lim_v else params[vk][ix]
+                                elif isinstance(ix, tuple):  # special case of EMG distribution, get the estimations
+                                    i, j = ix
+                                    if isinstance(params, list):
+                                        params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
+                                        params[i] = self.x_sampling if params[i] < self.x_sampling else params[i]
+                                        params[j] = self.x_sampling if params[j] < self.x_sampling else params[j]
+                                    elif isinstance(params, dict):
+                                        params_limits[pk][0][i] = self.x_sampling; params_limits[pk][0][j] = self.x_sampling
+                                        params_limits[vk][0][i] = self.x_sampling; params_limits[vk][0][j] = self.x_sampling
+                                        params[pk][i] = self.x_sampling if params[pk][i] < self.x_sampling else params[pk][i]
+                                        params[vk][i] = self.x_sampling if params[vk][i] < self.x_sampling else params[vk][i]
+                                        params[pk][j] = self.x_sampling if params[pk][j] < self.x_sampling else params[pk][j]
+                                        params[vk][j] = self.x_sampling if params[vk][j] < self.x_sampling else params[vk][j]
+                            # Below - restricted on parameters fitting using 'trf' method by default for unimodal parameters
+                            if isinstance(params, list):
+                                fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
+                            # Fit two default set of parameters - for peak and valley, and compare their RMSE
+                            elif isinstance(params, dict):
+                                fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk], 
+                                                                       bounds=params_limits[pk])
+                                fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk], 
+                                                                       bounds=params_limits[vk])
+                                y_f_p = function(self.x_norm, *fitted_f_params_p); y_f_v = function(self.x_norm, *fitted_f_params_v)
+                                diff_y_p = self.y_norm - y_f_p; diff_y_v = self.y_norm - y_f_v
+                                rmse_p = np.sqrt(np.mean((diff_y_p)**2)); rmse_v = np.sqrt(np.mean((diff_y_v)**2))
+                                print("RMSE peak:", round(rmse_p, 6), "RMSE valley:", round(rmse_v, 6), flush=True)
+                                if rmse_p > rmse_v:
+                                    fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
+                                else:
+                                    fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_v; diff_y = diff_y_p
+                                mae = np.mean(np.abs(diff_y))
+                        # Calculate or reassign some metrics based on the fitted parameters
+                        if pcov is not None:
                             perr = np.sqrt(np.diag(pcov))
-                        y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
-                        diff_y = self.y_norm - y_f; rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y)); aicc = None
+                        if np.isnan(rmse) and np.isnan(mae):
+                            y_f = function(self.x_norm, *fitted_f_params)  # calculate function values using fitted parameters
+                            diff_y = self.y_norm - y_f; rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
                         if len(self.best_fit_criteria) == 3:
                             aicc = self.get_information_criteria(function, rmse)  # cannot return nan since all functions are implemented
                         self.all_fits.append(Fit1DResult(function=function, params=fitted_f_params, pcov=pcov, perr=perr, rmse=rmse,
@@ -549,7 +600,10 @@ class PeakFit1D():
         """
         if f_name in self.function_names:
             i = self.function_names.index(f_name); x_norm = np.linspace(start=0.0, stop=1.0, num=401)
-            y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+            if isinstance(self.function_params[f_name], list):
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+            elif isinstance(self.function_params[f_name], dict):
+                y_norm = self.functions[i](x_norm, *self.function_params[f_name]["peak"])
             full_f_name = full_f_names.get(f_name, 'Curve'); x_r = "[0.0, 1.0]"
             plt.figure(f"{full_f_name} X={x_r}"); plt.plot(x_norm, y_norm, lw=2.75); plt.tight_layout()
         else:
@@ -569,7 +623,11 @@ class PeakFit1D():
         x_norm = np.linspace(start=0.0, stop=1.0, num=401)
         for f_name in self.function_names:
             if f_name in symmetric_f_names:
-                i = self.function_names.index(f_name); y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+                i = self.function_names.index(f_name)
+                if isinstance(self.function_params[f_name], list):
+                    y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+                elif isinstance(self.function_params[f_name], dict):
+                    y_norm = self.functions[i](x_norm, *self.function_params[f_name]["peak"])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
         plt.figure("All generic / asymmetric curves with default parameters for [0, 1] range", figsize=(11.0, 7.5))
@@ -577,7 +635,10 @@ class PeakFit1D():
         for f_name in self.function_names:
             if f_name in generic_f_names:
                 i = self.function_names.index(f_name)
-                y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+                if isinstance(self.function_params[f_name], list):
+                    y_norm = self.functions[i](x_norm, *self.function_params[f_name])
+                elif isinstance(self.function_params[f_name], dict):
+                    y_norm = self.functions[i](x_norm, *self.function_params[f_name]["peak"])
                 plt.plot(x_norm, y_norm, lw=2.75, label=full_f_names.get(f_name, 'Curve'))
         plt.legend(loc='best'); plt.tight_layout()
 
