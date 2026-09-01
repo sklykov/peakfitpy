@@ -33,6 +33,9 @@ def test_funcs_import():
             tp_limits = type(params_boundaries[f_n]); tp_params = type(default_f_params[f_n])
             if tp_params is dict:
                 assert tp_limits is tp_params, f"Function '{f_n}' defines different types for param-s {tp_params} and limits {tp_limits}"
+                assert set(default_f_params[f_n]) == {"peak", "valley"}, f"Check for '{f_n}' the {default_f_params[f_n]}"
+                assert set(params_boundaries[f_n]) == {"peak", "valley"}, f"Check for '{f_n}' the {params_boundaries[f_n]}"
+                assert len(default_f_params[f_n]["peak"]) == len(default_f_params[f_n]["valley"]), f"Check for '{f_n}' parameters / limits"
             elif tp_params is list:
                 assert tp_limits is tuple, f"Function '{f_n}' defines types for limits {tp_limits} - instead of 'tuple'"
             else:

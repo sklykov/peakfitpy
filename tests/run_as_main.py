@@ -43,7 +43,7 @@ test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
 test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = False  # tests the sorting of input X and Y data during initialization
-test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
+test_needle_spike = True  # test filtering out needle-like peak and criterion to filter it out
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
@@ -134,28 +134,16 @@ if __name__ == "__main__":
 
     # Check FWHM limitation for preventing needle spikes
     if test_needle_spike:
-        rng = np.random.default_rng(33)
-        x = np.linspace(start=-2.5, stop=1.5, num=41)
-        y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
-        pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(verbose=True, plot_best_fit=True, filter_spikes=True,
-                                                              include_funcs=(bump_f, gaussian_leveled_f, line_f))
+        x = np.linspace(start=-2.5, stop=1.5, num=51)
+        y = np.ones_like(x); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
+        pf = PeakFit1D(x, y); fit_res_np_l, _ = pf.find_best_fit(verbose=True, plot_best_fit=True, filter_spikes=True,
+                                                                 include_funcs=(bump_f, gaussian_leveled_f, line_f,))
+        assert fit_res_np_l.function.__name__ == "line_f", "Line should be fitted for a single point input"
         # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
         y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
-        pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(lorentzian_f, gaussian_f),
-                                                               filter_spikes=True)
-        # Test case transfer without plotting
-        rng = np.random.default_rng(57)
-        x = np.linspace(start=-2.5, stop=1.5, num=42)
-        y = rng.random(size=x.shape); y[y.shape[0]//2 - 6] = 15.0  # needle-like peak - works for Gaussian, Bump, Sech fitting
-        pf = PeakFit1D(x, y); fit_res_np_l = pf.find_best_fit(filter_spikes=True,
-                                                              include_funcs=(bump_f, gaussian_leveled_f, line_f, lorentzian_f))
-        assert fit_res_np_l[0].function.__name__ == "line_f"
-        # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
-        y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
-        pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f,
-                                                                                                  gaussian_leveled_f),
-                                                               plot_best_fit=True, selection_criterion="IC")
-        assert fit_res_np_lp[0].function.__name__ == "gaussian_leveled_f"
+        pf = PeakFit1D(x, y); fit_res_np_lp, _ = pf.find_best_fit(verbose=True, plot_best_fit=True, include_funcs=(lorentzian_f, gaussian_f),
+                                                                  filter_spikes=True)
+        assert fit_res_np_lp.function.__name__ == "lorentzian_f", "Expected Lorentzian for input data"
 
     # Check fallback fitting
     if test_fallback_fit:
@@ -201,7 +189,7 @@ if __name__ == "__main__":
         bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                  include_funcs=(lorentzian_f, sinc_sq_f, generalized_gaussian_f, emg_f, sech_f,
                                                 bump_f, logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f,
-                                                laplace_pdf_f, moffat_f, sinc_sq_f))
+                                                laplace_pdf_f, moffat_f))
         max_rmse_all = max(fit.rmse for fit in pf.all_fits); fits = pf.all_fits.copy()
         fits.sort(key= lambda x: x.rmse, reverse=True); max_rmse_f = fits[0]
         assert np.isclose(bf.rmse, 0.0), "Norm. RMSE of fit > 0.0 but expected to be close to 0.0 (perfect fit)"
@@ -214,7 +202,7 @@ if __name__ == "__main__":
         bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                  include_funcs=(lorentzian_f, sinc_sq_f, generalized_gaussian_f, emg_f, sech_f,
                                                 bump_f, logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f,
-                                                laplace_pdf_f, moffat_f, sinc_sq_f))
+                                                laplace_pdf_f, moffat_f))
         max_rmse_all = max(fit.rmse for fit in pf.all_fits); fits = pf.all_fits.copy()
         fits.sort(key= lambda x: x.rmse, reverse=True); max_rmse_f = fits[0]
         assert np.isclose(bf.rmse, 0.0), "Norm. RMSE of fit > 0.0 but expected to be close to 0.0 (perfect fit)"

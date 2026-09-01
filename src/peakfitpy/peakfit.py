@@ -52,7 +52,7 @@ from .utils.model_utils import (
     symmetric_f_names,
     tol,
 )
-from .utils.typing_utils import RealScalar, RealSeq, nparray
+from .utils.typing_utils import FloatArray, RealScalar, RealSeq, nparray
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -174,7 +174,7 @@ class PeakFit1D():
         self.function_params = {name: deepcopy(default_f_params[name]) for name in self.function_names}  # fail if no default param-s for a f()
         self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""; self.selected_funcs = ()
         # Define available best fit criteria - exclude or include "IC" based on sample size
-        generator = (len(params) for params in default_f_params.values())  # Generator expression
+        generator = (self._get_params_len(params) for params in default_f_params.values())  # Generator expression
         max_k = max(generator) + 1  # using Generator should evaluate the max iteratively
         self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
 
@@ -185,6 +185,9 @@ class PeakFit1D():
                       filter_line_fit: bool = False) -> tuple[Fit1DResult, PeakResult | None] | tuple[None, None]:
         """
         Fit in a loop candidate functions for X, Y normalized data and select the best fit.
+        
+        For supported models (e.g. symmetric, non polynomial functions), peak and valley parameterizations are fitted separately \n
+        using corresponding parameter bounds, and the variant with the lower RMSE is retained.
 
         Note that fitting results stored as the dataclass 'Fit1DResult' in self.best_fit with attributes: 'function', 'params', 'pcov', \n
         'perr', 'rmse', 'mae', 'aicc'. For getting them use code snippet: 'class_instance.best_fit.function'.\n
@@ -193,8 +196,8 @@ class PeakFit1D():
         'rmse', 'mae' - calculated based on difference input Y - fitted_function(input X), 'aicc' - Corrected Akaike Information Criterion.\n
         Defined peak / valley stored in the class attribute 'peak' (or 'self.peak') with the named attributes: \n
         peak.is_defined - bool with True if the extreme point has been found / exists; peak.is_peak - bool with True if it's a peak, \n
-        False - if it's valley and None if 'peak.is_defined' is False; peak.x and peak.y - coordinates of peak / valley if \n
-        'peak.is_defined' is True and None otherwise. \n
+        False - if it's valley; peak.x and peak.y - coordinates of peak / valley. \n
+        If no valid peak or valley can be defined, self.peak is None. \n 
         Note that params, pcov, perr, and PeakResult.x/y refer to the normalized fitting coordinates. \n
         Use get_peak_values(original=True) to retrieve peak/valley coordinates in the original data scale. \n
         All names of supported functions available in the class attribute PeakFit1D.function_names and as Callable functions in \n
@@ -256,7 +259,7 @@ class PeakFit1D():
             # Fitting loop
             for function in self.selected_funcs:
                 f_name = function.__name__  # string form of the function name
-                params = deepcopy(self.function_params[f_name])  # used default starting fitting parameters (centered peaks)
+                params = deepcopy(self.function_params[f_name])  # get the initial parameters as the copy for possible modification
                 aicc = None; mae = np.nan; rmse = np.nan; pk = "peak"; vk = "valley"; pcov = None; perr = None  # default values
                 if isinstance(params, list):  # either all default parameters stored as a list, or as dict with 2 variants
                     params_len = len(params)
@@ -278,16 +281,7 @@ class PeakFit1D():
                                     fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
                                 # probe both 'peak' and 'valley' default parameters and select best curve
                                 elif isinstance(params, dict):
-                                    fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk])
-                                    fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk])
-                                    y_f_p = function(self.x_norm, *fitted_f_params_p); y_f_v = function(self.x_norm, *fitted_f_params_v)
-                                    diff_y_p = self.y_norm - y_f_p; diff_y_v = self.y_norm - y_f_v
-                                    rmse_p = np.sqrt(np.mean((diff_y_p)**2)); rmse_v = np.sqrt(np.mean((diff_y_v)**2))
-                                    if rmse_p > rmse_v:
-                                        fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
-                                    else:
-                                        fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_v; diff_y = diff_y_p
-                                    mae = np.mean(np.abs(diff_y))
+                                    fitted_f_params, pcov, rmse, mae = self._fit_best_pv_variant(function, params)
                         else:
                             # Sampling-based minimum width corresponding to approx. FWHM_min ~= 2*x_sampling for most supported profiles
                             if f_name in params_w_min_index:
@@ -322,18 +316,7 @@ class PeakFit1D():
                                 fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
                             # Fit two default set of parameters - for peak and valley, and compare their RMSE
                             elif isinstance(params, dict):
-                                fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk], 
-                                                                       bounds=params_limits[pk])
-                                fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk], 
-                                                                       bounds=params_limits[vk])
-                                y_f_p = function(self.x_norm, *fitted_f_params_p); y_f_v = function(self.x_norm, *fitted_f_params_v)
-                                diff_y_p = self.y_norm - y_f_p; diff_y_v = self.y_norm - y_f_v
-                                rmse_p = np.sqrt(np.mean((diff_y_p)**2)); rmse_v = np.sqrt(np.mean((diff_y_v)**2))
-                                if rmse_p > rmse_v:
-                                    fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
-                                else:
-                                    fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_p; diff_y = diff_y_p
-                                mae = np.mean(np.abs(diff_y))
+                                fitted_f_params, pcov, rmse, mae = self._fit_best_pv_variant(function, params, params_limits)
                         # Calculate or reassign some metrics based on the fitted parameters
                         if pcov is not None:
                             perr = np.sqrt(np.diag(pcov))
@@ -460,7 +443,7 @@ class PeakFit1D():
                 raise ValueError("All functions excluded or provided empty input value")
         if not selected_funcs:
             selected_funcs = self.functions  # by default - fitting all functions
-        max_k: int = max(len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length between parameters
+        max_k: int = max(self._get_params_len(default_f_params[f.__name__]) for f in selected_funcs) + 1  # find the max length
         self.best_fit_criteria = ("RMSE", "MAE", "IC") if len(self.x_norm) > max_k + 1 else ("RMSE", "MAE")
         return selected_funcs
 
@@ -810,7 +793,7 @@ class PeakFit1D():
 
         """
         if f.__name__ in default_f_params:
-            n = self.x_norm.shape[0]; k = len(default_f_params[f.__name__]) + 1  # number of function params + 1
+            n = self.x_norm.shape[0]; k = self._get_params_len(default_f_params[f.__name__]) + 1  # number of function params + 1
             if rmse < tol:
                 rmse = 1e-6  # clamp RMSE to the smallest meaningful value used for also in the fitting_funcs.py
             # get AICc or BIC
@@ -844,6 +827,80 @@ class PeakFit1D():
         elif self.best_fit_criterion == "IC":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
                   f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))
+    
+    def _fit_best_pv_variant(self, function: Callable, params: dict, 
+                            limits: dict | None = None) -> tuple[FloatArray, FloatArray, float, float]:
+        """
+        Fit peak and valley parametrized functions and select the best variant.
+
+        Parameters
+        ----------
+        function : Callable
+            Function with both variants of parameters.
+        params : dict
+            Function initial parameters, corresponding to peak and valley variant.
+        limits : dict | None, optional
+            Limits of initial parameters, None for unconstrained fit. The default is None.
+
+        Returns
+        -------
+        FloatArray
+            Fitted best parameters.
+        FloatArray
+            pcov report from curve_fit method.
+        float
+            Calculated RMSE.
+        float
+            Calculated MAE.
+
+        Raises
+        ------
+        RuntimeError
+            If both peak and valley parameters variants are failed to be fitted.
+            
+        """
+        pk = "peak"; vk = "valley"
+        # Perform safeguarded fits
+        if limits is not None:
+            try:
+                fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk], bounds=limits[pk])
+            except RuntimeError:
+                fitted_f_params_p, pcov_p = None, None
+            try:
+                fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk], bounds=limits[vk])
+            except RuntimeError:
+                fitted_f_params_v, pcov_v = None, None
+        else:
+            try:
+                fitted_f_params_p, pcov_p  = curve_fit(function, self.x_norm, self.y_norm, p0=params[pk])
+            except RuntimeError:
+                fitted_f_params_p, pcov_p = None, None
+            try:
+                fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk])
+            except RuntimeError:
+                fitted_f_params_v, pcov_v = None, None
+        # Checking if fits were succesful 
+        if fitted_f_params_p is not None and pcov_p is not None:
+            y_f_p = function(self.x_norm, *fitted_f_params_p); diff_y_p = self.y_norm - y_f_p; rmse_p = np.sqrt(np.mean((diff_y_p)**2))
+        else:
+            diff_y_p = None; rmse_p = np.nan
+        if fitted_f_params_v is not None and pcov_v is not None:
+            y_f_v = function(self.x_norm, *fitted_f_params_v); diff_y_v = self.y_norm - y_f_v; rmse_v = np.sqrt(np.mean((diff_y_v)**2))
+        else:
+            diff_y_v = None; rmse_v = np.nan
+        # Select based on fits the return values
+        if np.isnan(rmse_p) and np.isnan(rmse_v):
+            raise RuntimeError("\nBoth fits are unsuccesful")
+        elif np.isnan(rmse_p):
+            fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
+        elif np.isnan(rmse_v):
+            fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_p; diff_y = diff_y_p
+        elif rmse_p > rmse_v:
+            fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
+        else:
+            fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_p; diff_y = diff_y_p
+        mae = np.mean(np.abs(diff_y))
+        return fitted_f_params, pcov, rmse, mae
 
     # %% Static useful methods
     @staticmethod
@@ -916,6 +973,26 @@ class PeakFit1D():
             matplotlib.use('Qt5Agg')
         if not plt.isinteractive():
             plt.ion()
+    
+    @staticmethod
+    def _get_params_len(params: list | dict) -> int:
+        """
+        Help to define length of stored in a list or dict initial parameters.
+
+        Parameters
+        ----------
+        params : list | dict
+            Initial parameters for fitting.
+
+        Returns
+        -------
+        int
+            Number of initial parameters.
+            
+        """
+        if isinstance(params, dict):
+            return len(params["peak"])
+        return len(params)
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)
