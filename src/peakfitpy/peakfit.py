@@ -171,7 +171,7 @@ class PeakFit1D():
         else:
             raise ValueError("\nProvided Y values are identical (constant)")
         # Initialize class instance variables
-        self.function_params = {name: default_f_params[name].copy() for name in self.function_names}  # fail if no default param-s for a f()
+        self.function_params = {name: deepcopy(default_f_params[name]) for name in self.function_names}  # fail if no default param-s for a f()
         self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""; self.selected_funcs = ()
         # Define available best fit criteria - exclude or include "IC" based on sample size
         generator = (len(params) for params in default_f_params.values())  # Generator expression
@@ -256,7 +256,7 @@ class PeakFit1D():
             # Fitting loop
             for function in self.selected_funcs:
                 f_name = function.__name__  # string form of the function name
-                params = self.function_params[f_name].copy()  # used default starting fitting parameters (centered peaks)
+                params = deepcopy(self.function_params[f_name])  # used default starting fitting parameters (centered peaks)
                 aicc = None; mae = np.nan; rmse = np.nan; pk = "peak"; vk = "valley"; pcov = None; perr = None  # default values
                 if isinstance(params, list):  # either all default parameters stored as a list, or as dict with 2 variants
                     params_len = len(params)
@@ -329,11 +329,10 @@ class PeakFit1D():
                                 y_f_p = function(self.x_norm, *fitted_f_params_p); y_f_v = function(self.x_norm, *fitted_f_params_v)
                                 diff_y_p = self.y_norm - y_f_p; diff_y_v = self.y_norm - y_f_v
                                 rmse_p = np.sqrt(np.mean((diff_y_p)**2)); rmse_v = np.sqrt(np.mean((diff_y_v)**2))
-                                print("RMSE peak:", round(rmse_p, 6), "RMSE valley:", round(rmse_v, 6), flush=True)
                                 if rmse_p > rmse_v:
                                     fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
                                 else:
-                                    fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_v; diff_y = diff_y_p
+                                    fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_p; diff_y = diff_y_p
                                 mae = np.mean(np.abs(diff_y))
                         # Calculate or reassign some metrics based on the fitted parameters
                         if pcov is not None:
@@ -838,10 +837,10 @@ class PeakFit1D():
         """
         if self.best_fit_criterion == "RMSE":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
-                  f"| based on {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
+                  f"| based on norm. {self.best_fit_criterion}:", round(self.best_fit.rmse, 6))
         elif self.best_fit_criterion == "MAE":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
-                  f"| based on {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
+                  f"| based on norm. {self.best_fit_criterion}:", round(self.best_fit.mae, 6))
         elif self.best_fit_criterion == "IC":
             print("Best fit function:", full_f_names.get(self.best_fit.function.__name__, ""),
                   f"| based on {self.best_fit_criterion}:", round(self.best_fit.aicc, 3))

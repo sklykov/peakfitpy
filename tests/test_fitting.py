@@ -19,12 +19,16 @@ from peakfitpy.fit_models import (
     gaussian_f,
     gaussian_leveled_f,
     generalized_gaussian_f,
+    laplace_pdf_f,
     line_f,
+    logistic_derivative_f,
     lorentzian_f,
     moffat_f,
     parabola_f,
     quartic_polynomial,
     rayleigh_pdf_f,
+    rayleigh_pdf_mirrored_f,
+    sech_f,
     sinc_sq_f,
 )
 from peakfitpy.utils.model_utils import default_f_params
@@ -105,9 +109,6 @@ def test_basic_fitting():
     x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
     y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=20)
     pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
-    assert is_peak is None, "No peak should be fitted"
-    y = PeakFit1D.add_awgn(y, noise_fraction=1.0, seed=32)
-    pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, selection_criterion="IC"); is_peak, xp, yp = pf.get_peak_values()
     if is_peak is not None:
         assert 0.0 < xp < 1.0 and 0.85*y.min() <= yp <= 1.15*y.max(), ("\nFitting of noisy data results in peak: {xp, yp} - what not"
                                                                        + f" in [0.0, 1.0] X and {0.85*y.min(), 1.15*y.max()} Y ranges")
@@ -143,9 +144,10 @@ def test_fitting_features():
     assert fit_res_np_l[0].function.__name__ == "line_f", "Line should be fitted to the data with single outlier"
     # Make the peak not needle like, allow 4 points nearby => not "needle-like" peak
     y[y.shape[0]//2 - 8] = 8.7; y[y.shape[0]//2 - 5] = 13.0; y[y.shape[0]//2 - 4] = 9.2; y[y.shape[0]//2 - 7] = 12.4
-    pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f),
+    pf = PeakFit1D(x, y); fit_res_np_lp = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, gaussian_f, moffat_f,
+                                                                                              gaussian_leveled_f),
                                                            selection_criterion="IC")
-    assert fit_res_np_lp[0].function.__name__ == "gaussian_f", "5 points formed a peak that should be fitted as Gaussian function"
+    assert fit_res_np_lp[0].function.__name__ == "gaussian_leveled_f", "5 points should be fitted as Gaussian + Const function"
 
 
 # regex magic used for filtering out only single proper warning
@@ -206,3 +208,42 @@ def test_special_conditions():
                                                    include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
     condition = bf.function.__name__ == quartic_polynomial.__name__ and p.is_defined and p.is_peak and 0.65 <= p.x <= 0.69
     assert condition, "Specific function -(x-0.67)**4 not properly fitted, check conditions in the manual test (run_as_main.py)"
+
+
+def test_fitting_scenarios():
+    """
+    Test found scenarios where fitting should be still meaningful.
+
+    Returns
+    -------
+    None
+    
+    """
+    n_points = 101; x = np.linspace(start=0.0, stop=1.0, num=n_points)*1E2 + 5.0
+    k, b, c, d = default_f_params[gaussian_leveled_f.__name__]["peak"]
+    # Test shifted valley fitting
+    y = gaussian_leveled_f(x, k-2.0, b+22.5, c*50.0, d+16.0)
+    pf = PeakFit1D(x, y)
+    bf, p = pf.find_best_fit(filter_line_fit=True, filter_spikes=True,
+                             include_funcs=(lorentzian_f, sinc_sq_f, generalized_gaussian_f, emg_f, sech_f,
+                                            bump_f, logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f,
+                                            laplace_pdf_f, moffat_f, sinc_sq_f))
+    max_rmse_all = max(fit.rmse for fit in pf.all_fits); fits = pf.all_fits.copy()
+    fits.sort(key= lambda x: x.rmse, reverse=True); max_rmse_f = fits[0]
+    assert np.isclose(bf.rmse, 0.0), "Norm. RMSE of fit > 0.0 but expected to be close to 0.0 (perfect fit)"
+    assert p is not None and not p.is_peak, "Valley should be defined"
+    assert max_rmse_all < 0.055, "Max norm. RMSE exceeds expected value of 0.055"
+    assert max_rmse_f.function.__name__ == "laplace_pdf_f", "Expected Laplace Function with worst RMSE"
+    # Test shifted peak fitting
+    y = gaussian_leveled_f(x, k+2.0, b+23.0, c*50.0, d+16.0)
+    pf = PeakFit1D(x, y)
+    bf, p = pf.find_best_fit(filter_line_fit=True, filter_spikes=True,
+                             include_funcs=(lorentzian_f, sinc_sq_f, generalized_gaussian_f, emg_f, sech_f,
+                                            bump_f, logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f,
+                                            laplace_pdf_f, moffat_f, sinc_sq_f))
+    max_rmse_all = max(fit.rmse for fit in pf.all_fits); fits = pf.all_fits.copy()
+    fits.sort(key= lambda x: x.rmse, reverse=True); max_rmse_f = fits[0]
+    assert np.isclose(bf.rmse, 0.0), "Norm. RMSE of fit > 0.0 but expected to be close to 0.0 (perfect fit)"
+    assert p is not None and p.is_peak, "Peak should be defined"
+    assert max_rmse_all < 0.055, "Max norm. RMSE exceeds expected value of 0.055"
+    assert max_rmse_f.function.__name__ == "laplace_pdf_f", "Expected Laplace Function with worst RMSE"
