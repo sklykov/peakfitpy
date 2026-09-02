@@ -24,6 +24,7 @@ def test_funcs_import():
     """
     assert len(PeakFit1D.functions) == len(PeakFit1D.function_names), "Not all names of functions exported"
     pf = PeakFit1D(x=[i for i in range(7)], y=[2*i - 0.75 for i in range(7)])
+    pk = "peak"; vk = "valley"
     for f in PeakFit1D.functions:
         f_n = f.__name__
         assert f_n in pf.function_params, "Not all functions have default parameters for fitting defined in the instance variable"
@@ -33,9 +34,13 @@ def test_funcs_import():
             tp_limits = type(params_boundaries[f_n]); tp_params = type(default_f_params[f_n])
             if tp_params is dict:
                 assert tp_limits is tp_params, f"Function '{f_n}' defines different types for param-s {tp_params} and limits {tp_limits}"
-                assert set(default_f_params[f_n]) == {"peak", "valley"}, f"Check for '{f_n}' the {default_f_params[f_n]}"
-                assert set(params_boundaries[f_n]) == {"peak", "valley"}, f"Check for '{f_n}' the {params_boundaries[f_n]}"
-                assert len(default_f_params[f_n]["peak"]) == len(default_f_params[f_n]["valley"]), f"Check for '{f_n}' parameters / limits"
+                assert set(default_f_params[f_n]) == {pk, vk}, f"Check for '{f_n}' the {default_f_params[f_n]}"
+                assert set(params_boundaries[f_n]) == {pk, vk}, f"Check for '{f_n}' the {params_boundaries[f_n]}"
+                assert len(default_f_params[f_n][pk]) == len(default_f_params[f_n][vk]), f"Check for '{f_n}' parameters / limits"
+                assert len(params_boundaries[f_n][vk][0]) == len(default_f_params[f_n][vk]), f"Check for '{f_n}' parameters / limits"
+                assert len(params_boundaries[f_n][vk][1]) == len(default_f_params[f_n][vk]), f"Check for '{f_n}' parameters / limits"
+                assert len(params_boundaries[f_n][pk][0]) == len(default_f_params[f_n][pk]), f"Check for '{f_n}' parameters / limits"
+                assert len(params_boundaries[f_n][pk][1]) == len(default_f_params[f_n][pk]), f"Check for '{f_n}' parameters / limits"
             elif tp_params is list:
                 assert tp_limits is tuple, f"Function '{f_n}' defines types for limits {tp_limits} - instead of 'tuple'"
             else:

@@ -40,3 +40,14 @@ class PeakResult():
     x_orig : float  # for originally scaled range
     y_orig : float  # for originally scaled range
     fwhm_orig: float | None  # for originally scaled range
+
+
+# %% Peak estimated properties
+@dataclass(frozen=True, slots=True)
+class PeakEstimate():
+    """Dataclass for storing estimated peaks / valleys properties used as initial parameters guess for 'trf' curve fitting."""
+    
+    x_peaks: tuple[float]
+    peaks_width: tuple[float]
+    x_valleys: tuple[float]
+    valleys_width: tuple[float]

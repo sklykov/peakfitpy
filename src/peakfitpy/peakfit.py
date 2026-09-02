@@ -18,6 +18,7 @@ import numpy as np
 from numpy.polynomial import Polynomial
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks
 
 from .fit_models import (
     bump_f,
@@ -39,7 +40,7 @@ from .fit_models import (
     sech_f,
     sinc_sq_f,
 )
-from .results import Fit1DResult, PeakResult
+from .results import Fit1DResult, PeakEstimate, PeakResult
 from .utils.model_utils import (
     default_f_params,
     full_f_names,
@@ -77,6 +78,7 @@ class PeakFit1D():
     function_names: tuple[str, ...] = tuple(f.__name__ for f in functions)  # uses internally generator expression
     polynomials: tuple[Callable, ...] = (parabola_f, cubic_polynomial, quartic_polynomial, line_f)
     polynomial_names: tuple[str, ...] = tuple(f.__name__ for f in polynomials)
+    peak_props: PeakEstimate
 
     def __init__(self, x: RealSeq | nparray, y: RealSeq | nparray):
         """
@@ -146,14 +148,14 @@ class PeakFit1D():
                     self.x_vals = x_vals_reversed; self.y_vals = self.y_vals[::-1]
                 else:
                     ids = np.argsort(self.x_vals, kind='stable')  # return back indices for sorting of initial array
-                    self.x_vals = self.x_vals[ids]; self.y_vals = self.y_vals[ids]  # use sorted X indices for sorting both
+                    self.x_vals = self.x_vals[ids]; self.y_vals = self.y_vals[ids]  # use sorted X indices for sorting both arrays
             else:
                 raise ValueError("\nProvided X data doesn't contain all unique values (i.e. some or all values are identical)")
         # Normalize X data for the uniform range [0.0, 1.0] for improving numerical fit stability
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
             self.x_norm = (self.x_vals.copy() - self.x_min).astype(np.float64) / self.x_range  # normalization to the [0.0, 1.0] range
-            self.x_sampling = np.median(np.diff(self.x_norm))  # for making estimation for fitting width bounds
+            self.x_sampling = np.median(np.diff(self.x_norm))  # making estimation of X data sampling, works best for even sampling
             if 1e-7 <= self.x_sampling < 1e-6:
                 if self.x_norm.shape[0] > 1E6:
                     __warn_mess = ("\nEstimated median sampling interval of normalized X is below 1E-6 " +
@@ -164,12 +166,15 @@ class PeakFit1D():
                 warnings.warn(__warn_mess, stacklevel=2)
             elif self.x_sampling < 1e-7:
                 raise ValueError("\nEstimated median sampling interval of normalized X is too small for fitting convergence")
+        else:
+            raise ValueError("\nProvided X values are identical (constant)")
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
             self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
         else:
             raise ValueError("\nProvided Y values are identical (constant)")
+        self.estimate_peak_props()  # perform analysis once on the input X and Y data for retrieving possible peak's position and width
         # Initialize class instance variables
         self.function_params = {name: deepcopy(default_f_params[name]) for name in self.function_names}  # fail if no default param-s for a f()
         self.best_fit = None; self.peak = None; self.all_fits = []; self.best_fit_criterion = ""; self.selected_funcs = ()
@@ -291,7 +296,7 @@ class PeakFit1D():
                                     if isinstance(params, list):
                                         params_limits[0][ix] = 1.975*self.x_sampling*params_limits[1][ix]
                                         params[ix] = params_limits[0][ix] if params[ix] < params_limits[0][ix] else params[ix]
-                                    # Limits calculated repeadetly for peak and valley case (pk and vk keys)
+                                    # Limits calculated repeatedly for peak and valley case (pk and vk keys)
                                     elif isinstance(params, dict):
                                         params_limits[pk][0][ix] = 1.975*self.x_sampling*params_limits[pk][1][ix]
                                         params_limits[vk][0][ix] = 1.975*self.x_sampling*params_limits[vk][1][ix]
@@ -879,7 +884,7 @@ class PeakFit1D():
                 fitted_f_params_v, pcov_v  = curve_fit(function, self.x_norm, self.y_norm, p0=params[vk])
             except RuntimeError:
                 fitted_f_params_v, pcov_v = None, None
-        # Checking if fits were succesful 
+        # Checking if fits were successful 
         if fitted_f_params_p is not None and pcov_p is not None:
             y_f_p = function(self.x_norm, *fitted_f_params_p); diff_y_p = self.y_norm - y_f_p; rmse_p = np.sqrt(np.mean((diff_y_p)**2))
         else:
@@ -890,7 +895,7 @@ class PeakFit1D():
             diff_y_v = None; rmse_v = np.nan
         # Select based on fits the return values
         if np.isnan(rmse_p) and np.isnan(rmse_v):
-            raise RuntimeError("\nBoth fits are unsuccesful")
+            raise RuntimeError("\nBoth fits are unsuccessful")
         elif np.isnan(rmse_p):
             fitted_f_params = fitted_f_params_v; pcov = pcov_v; rmse = rmse_v; diff_y = diff_y_v
         elif np.isnan(rmse_v):
@@ -901,6 +906,32 @@ class PeakFit1D():
             fitted_f_params = fitted_f_params_p; pcov = pcov_p; rmse = rmse_p; diff_y = diff_y_p
         mae = np.mean(np.abs(diff_y))
         return fitted_f_params, pcov, rmse, mae
+    
+    def estimate_peak_props(self):
+        x_peaks = []; peaks_width = []; x_valleys = []; valleys_width = []
+        # Default parameters for fitting - the middle points of the intervals and ~ 2 * X sampling as widths
+        x_peaks.append(0.5); peaks_width.append(1.975*self.x_sampling); x_valleys = x_peaks.copy(); valleys_width = peaks_width.copy()
+        # Estimation of width and peak locations based on the signal processing SciPy method - with permissive initial filtering
+        if len(self.y_norm) >= 7:
+            peaks, peak_props = find_peaks(self.y_norm, distance=3, prominence=(None, None), width=(None, None))
+            valleys, valleys_props = find_peaks(-self.y_norm, distance=3, prominence=(None, None), width=(None, None))
+            if len(peaks) > 0:
+                # Estimate noise level for selecting minimal acceptable prominence (how peak is outstanding to the neighbors) level
+                dy = np.diff(self.y_norm); mad = np.median(np.abs(dy - np.median(dy))); noise_std = (1.4826 * mad) / np.sqrt(2)
+                if noise_std < 3.25:
+                    min_prominence = max(0.095, 3.25*noise_std)  # at least 9.5% of normalized Y range or 3.25 estimated noise std
+                else:
+                    min_prominence = 0.95  # default close to the highest value
+                print("Min allowed prominence:", min_prominence)
+                # Get the peak with max prominence
+                i_max_prom = np.argmax(peak_props["prominences"])
+                if peak_props["prominences"][i_max_prom] >= min_prominence:
+                    print("Peak at X =", self.x_norm[peaks[i_max_prom]])
+                    x_peaks.append(self.x_norm[peaks[i_max_prom]])
+        # Fallback values - min / max in the array
+        # Transfer collected data to the class variable
+        self.peak_props = PeakEstimate(x_peaks=tuple(x_peaks), peaks_width=tuple(peaks_width),
+                                       x_valleys=tuple(x_valleys), valleys_width=tuple(valleys_width))
 
     # %% Static useful methods
     @staticmethod
