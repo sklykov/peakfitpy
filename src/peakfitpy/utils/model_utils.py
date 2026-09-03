@@ -456,12 +456,12 @@ d_min = -1.0; d_max = 2.0; x_min = -1.0; x_max = 2.0  # universally defined from
 w_max_gaussian = fwhm_max/get_fwhm("gaussian_f", 1.0)  # Retrieve FWHM with width = 1.0
 w_max_lorentzian = fwhm_max/get_fwhm("lorentzian_f", 1.0)
 w_max_sech = fwhm_max/get_fwhm("sech_f", 1.0)
-w_max_bump = 1.0  # as recommended, prefer support width, where bump function still defined: abs(X-m) < b
+w_max_bump = w_max_bump = fwhm_max / get_fwhm("bump_f", 1.0)
 w_max_logistic = fwhm_max/get_fwhm("logistic_derivative_f", 1.0)
 w_max_rayleigh = fwhm_max/get_fwhm("rayleigh_pdf_f", 1.0)
 w_max_laplace = fwhm_max/get_fwhm("laplace_pdf_f", 1.0)
-w_max_gaussian_gen = fwhm_max/get_fwhm("generalized_gaussian_f", 1.0, [1.0, 10.0, 0.5, 1.0, 0.0])
-w_max_moffat = fwhm_max/get_fwhm("moffat_f", 1.0, [1.0, 0.5, 1.0, 0.5, 0.0])
+w_max_gaussian_gen = fwhm_max/get_fwhm("generalized_gaussian_f", fwhm_max, [1.0, 1.0, 0.5, 1.0, 0.0])  # with st min = 1.0
+w_max_moffat = fwhm_max/get_fwhm("moffat_f", fwhm_max, [1.0, 0.5, 1.0, 10.0, 0.0])   # beta maximum = 10.0
 w_sinc_sq = fwhm_max/get_fwhm("sinc_sq_f", 1.0)
 w_emg_g, w_emg_tau = w_max_gaussian, 1.0/log(2.0)  # recommended estimation for Gaussian and exponential decay parts
 

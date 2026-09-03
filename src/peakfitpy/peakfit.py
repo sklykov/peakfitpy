@@ -45,6 +45,7 @@ from .utils.model_utils import (
     default_f_params,
     full_f_names,
     funcs_with_fwhm,
+    fwhm_max,
     generic_f_names,
     get_fwhm_generic,
     get_peak,
@@ -1007,7 +1008,6 @@ class PeakFit1D():
                                                       self.peak_props.peaks_min_width, strict=True):
                 # Correct parameters limits and initial parameter guess using the estimated peak and width values
                 i_w = init_params_idx[f_name]['w']; i_p = init_params_idx[f_name]['m']  # get parameters indices for func. def.
-                init_params[pk][i_p] = x_peak  # modify initial guess based on est.
                 # Sanity check and modification of parameters low and upper limits
                 param_width = get_width_from_fwhm(f_name, peak_width, init_params[pk])  # calculate func. param. width based on FWHM
                 if f_name not in shape_dependent_funcs:
@@ -1017,8 +1017,16 @@ class PeakFit1D():
                 init_w = max(param_width, min_width)  # check the initial width >= minimal width
                 init_w = min(init_w, 0.985 * limits[pk][1][i_w])  # initial width check against max calculated width
                 init_params[pk][i_w] = init_w  # using checked initial parameter
+                # Correct peak position for Rayleigh specific function and for others - use it directly as the initial parameter
+                init_params[pk][i_p] = self._get_pv_position(f_name, x_peak, init_w)
+                # Perform fitting with derived initial parameters and limits
                 try:
                     fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=init_params[pk], bounds=limits[pk])
+                    # Check FWHM for parametrized functions in 'shape_dependent_funcs' and reject if calculated FWHM is greater than max
+                    if f_name in shape_dependent_funcs:
+                        fitted_fwhm = get_fwhm_generic(f_name, fitted_f_params)
+                        if fitted_fwhm is None or fitted_fwhm > fwhm_max:  # jump to the next candidate w/t adding the fitting results
+                            continue
                     y_f = function(self.x_norm, *fitted_f_params); diff_y = self.y_norm - y_f
                     rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
                     fitted_funcs_props.append((fitted_f_params, pcov, rmse, mae))
@@ -1029,7 +1037,6 @@ class PeakFit1D():
                                                             self.peak_props.valleys_min_width, strict=True):
                 # Correct parameters limits and initial parameter guess using the estimated peak and width values
                 i_w = init_params_idx[f_name]['w']; i_p = init_params_idx[f_name]['m']  # get parameters indices for func. def.
-                init_params[vk][i_p] = x_valley  # modify initial guess based on est.
                 # Sanity check and modification of parameters low and upper limits
                 param_width = get_width_from_fwhm(f_name, valley_width, init_params[vk])  # calculate func. param. width based on FWHM
                 if f_name not in shape_dependent_funcs:
@@ -1039,8 +1046,14 @@ class PeakFit1D():
                 init_w = max(param_width, min_width)  # check the initial width >= minimal width
                 init_w = min(init_w, 0.985 * limits[vk][1][i_w])  # initial width check against max calculated width
                 init_params[vk][i_w] = init_w  # using checked initial parameter
+                init_params[vk][i_p] = self._get_pv_position(f_name, x_valley, init_w)
                 try:
                     fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=init_params[vk], bounds=limits[vk])
+                    # Check FWHM for parametrized functions in 'shape_dependent_funcs' and reject if calculated FWHM is greater than max
+                    if f_name in shape_dependent_funcs:
+                        fitted_fwhm = get_fwhm_generic(f_name, fitted_f_params)
+                        if fitted_fwhm is None or fitted_fwhm > fwhm_max:  # jump to the next candidate w/t adding the fitting results
+                            continue
                     y_f = function(self.x_norm, *fitted_f_params); diff_y = self.y_norm - y_f
                     rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
                     fitted_funcs_props.append((fitted_f_params, pcov, rmse, mae))
@@ -1145,6 +1158,32 @@ class PeakFit1D():
         if isinstance(params, dict):
             return len(params["peak"])
         return len(params)
+    
+    @staticmethod
+    def _get_pv_position(f_name: str, x_pos: float, width: float) -> float:
+        """
+        Correct the peak / valley position for Rayleigh function.
+
+        Parameters
+        ----------
+        f_name : str
+            Function name.
+        x_pos : float
+            X coordinate of peak / valley.
+        width : float
+            Initial width.
+
+        Returns
+        -------
+        float
+            Corrected peak / valley position.
+            
+        """
+        if f_name == "rayleigh_pdf_f":
+            return x_pos - width
+        elif f_name == "rayleigh_pdf_mirrored_f":
+            return x_pos + width
+        return x_pos
 
 
 # %% Define default export classes and methods used with import * statement (import * from peakfitpy)

@@ -47,9 +47,9 @@ class PeakResult():
 class PeakEstimate():
     """Dataclass for storing estimated peaks / valleys properties used as initial parameters guess for 'trf' curve fitting."""
     
-    x_peaks: tuple[float]
-    peaks_width: tuple[float]
-    peaks_min_width: tuple[float]
-    x_valleys: tuple[float]
-    valleys_width: tuple[float]
-    valleys_min_width: tuple[float]
+    x_peaks: tuple[float, ...]
+    peaks_width: tuple[float, ...]
+    peaks_min_width: tuple[float, ...]
+    x_valleys: tuple[float, ...]
+    valleys_width: tuple[float, ...]
+    valleys_min_width: tuple[float, ...]

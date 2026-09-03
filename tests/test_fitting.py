@@ -162,8 +162,8 @@ def test_fitting_fallback():
     x = np.linspace(start=-2.5, stop=1.5, num=3)*1e-2; y = -0.5*np.linspace(start=-10.5, stop=1.5, num=3) + 5.7  # just 3 points line
     pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, include_funcs=(constant_f, line_f))
     fr, p = pf.find_best_fit(filter_spikes=True, include_funcs=(lorentzian_f, rayleigh_pdf_f, emg_f, sinc_sq_f))
-    fr_n = fr.function.__name__; condition = fr is not None and p is None and fr_n == line_f.__name__ and len(pf.all_fits) > 0
-    assert condition, "Expected line fitted to the data, instead: {fr.function.__name__}"
+    assert fr is not None and p is None and len(pf.all_fits) > 0, "Line should be still fitted as previous fit"
+    assert  fr.function.__name__ == line_f.__name__, "Expected line fitted to the data, instead: {fr.function.__name__}"
 
 
 @pytest.mark.filterwarnings(r"ignore:\s*No curves could be fitted for the provided values\.$:UserWarning")
