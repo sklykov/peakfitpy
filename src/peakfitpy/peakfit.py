@@ -43,11 +43,13 @@ from .fit_models import (
 from .results import Fit1DResult, PeakEstimate, PeakResult
 from .utils.model_utils import (
     default_f_params,
+    init_params_idx,
     full_f_names,
     funcs_with_fwhm,
     generic_f_names,
     get_fwhm_generic,
     get_peak,
+    get_width_from_fwhm,
     params_boundaries,
     params_w_min_index,
     symmetric_f_names,
@@ -284,12 +286,12 @@ class PeakFit1D():
                                 # unrestrained fitting for any function that doesn't provide the limits on its parameters
                                 if isinstance(params, list):
                                     fitted_f_params, pcov  = curve_fit(function, self.x_norm, self.y_norm, p0=params)
-                                # probe both 'peak' and 'valley' default parameters and select best curve
+                                # probe both 'peak' and 'valley' default parameters and select best curve (without restriction on parameters)
                                 elif isinstance(params, dict):
                                     fitted_f_params, pcov, rmse, mae = self._fit_best_pv_variant(function, params)
                         else:
                             # Sampling-based minimum width corresponding to approx. FWHM_min ~= 2*x_sampling for most supported profiles
-                            if f_name in params_w_min_index:
+                            if f_name in params_w_min_index and f_name not in init_params_idx:
                                 ix = params_w_min_index.get(f_name, None)
                                 if isinstance(ix, int):
                                     # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Gaussian fitting (~= max)
@@ -320,8 +322,10 @@ class PeakFit1D():
                             if isinstance(params, list):
                                 fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
                             # Fit two default set of parameters - for peak and valley, and compare their RMSE
-                            elif isinstance(params, dict):
+                            elif isinstance(params, dict) and f_name not in init_params_idx:
                                 fitted_f_params, pcov, rmse, mae = self._fit_best_pv_variant(function, params, params_limits)
+                            elif isinstance(params, dict) and f_name in init_params_idx:
+                                fitted_f_params, pcov, rmse, mae = self._fit_candidates(function, params, params_limits)
                         # Calculate or reassign some metrics based on the fitted parameters
                         if pcov is not None:
                             perr = np.sqrt(np.diag(pcov))
@@ -908,30 +912,124 @@ class PeakFit1D():
         return fitted_f_params, pcov, rmse, mae
     
     def estimate_peak_props(self):
-        x_peaks = []; peaks_width = []; x_valleys = []; valleys_width = []
-        # Default parameters for fitting - the middle points of the intervals and ~ 2 * X sampling as widths
-        x_peaks.append(0.5); peaks_width.append(1.975*self.x_sampling); x_valleys = x_peaks.copy(); valleys_width = peaks_width.copy()
-        # Estimation of width and peak locations based on the signal processing SciPy method - with permissive initial filtering
+        """
+        Estimate peak / valley location and width based on the input data.
+
+        Returns
+        -------
+        None
+        
+        """
+        x_peaks = []; peaks_width = []; peaks_min_width = []; x_valleys = []; valleys_width = []; valleys_min_width = []
+        # Default parameters for fitting - the middle points of the intervals and ~ 3 * X sampling as widths
+        init_dx = 3.0*self.x_sampling  # starts with 3 points within peak width
+        min_dx = 1.95*self.x_sampling  # minimal width should include ~ 2 points within, based on global sampling
+        x_peaks.append(0.5); peaks_width.append(init_dx); peaks_min_width.append(min_dx)
+        x_valleys.append(0.5); valleys_width.append(init_dx); valleys_min_width.append(min_dx)
+        # Fallback values - min / max in the array
+        x_peaks.append(self.x_norm[np.argmax(self.y_norm)]); peaks_width.append(init_dx); peaks_min_width.append(min_dx)
+        x_valleys.append(self.x_norm[np.argmin(self.y_norm)]); valleys_width.append(init_dx); valleys_min_width.append(min_dx)
+        # Estimation of minimal peak prominence level based on the input data, if it's sufficiently large
+        min_prominence = 0.095  # at least 9.5% of normalized Y range used for the minimal significant peak
+        # Estimate noise level for selecting minimal acceptable prominence (how peak is outstanding to the neighbors) level
         if len(self.y_norm) >= 7:
+            dy = np.diff(self.y_norm); mad = np.median(np.abs(dy - np.median(dy))); noise_std = (1.4826 * mad) / np.sqrt(2)
+            min_prominence = max(0.095, 3.25*noise_std)  # at least 9.5% of normalized Y range or 3.25 estimated noise std
+        # Estimation of width and peak locations based on the signal processing SciPy method - with permissive initial filtering
+        if len(self.y_norm) >= 3:
+            # Detecting and evaluating peaks 
             peaks, peak_props = find_peaks(self.y_norm, distance=3, prominence=(None, None), width=(None, None))
-            valleys, valleys_props = find_peaks(-self.y_norm, distance=3, prominence=(None, None), width=(None, None))
             if len(peaks) > 0:
-                # Estimate noise level for selecting minimal acceptable prominence (how peak is outstanding to the neighbors) level
-                dy = np.diff(self.y_norm); mad = np.median(np.abs(dy - np.median(dy))); noise_std = (1.4826 * mad) / np.sqrt(2)
-                if noise_std < 3.25:
-                    min_prominence = max(0.095, 3.25*noise_std)  # at least 9.5% of normalized Y range or 3.25 estimated noise std
-                else:
-                    min_prominence = 0.95  # default close to the highest value
-                print("Min allowed prominence:", min_prominence)
                 # Get the peak with max prominence
                 i_max_prom = np.argmax(peak_props["prominences"])
                 if peak_props["prominences"][i_max_prom] >= min_prominence:
-                    print("Peak at X =", self.x_norm[peaks[i_max_prom]])
-                    x_peaks.append(self.x_norm[peaks[i_max_prom]])
-        # Fallback values - min / max in the array
+                    # Calculate FWHM estimate based on the returned left and right indices
+                    indices = np.arange(len(self.x_norm))  # original data indices
+                    x_left = np.interp(peak_props["left_ips"][i_max_prom], indices, self.x_norm)  # interpolate X value based on float index
+                    x_right = np.interp(peak_props["right_ips"][i_max_prom], indices, self.x_norm)  # again, interpolation
+                    fwhm_x = x_right - x_left 
+                    # Calculate local sampling rate around the found peak
+                    peak_idx = peaks[i_max_prom]
+                    i0 = max(0, peak_idx - 2)  # safeguarded left index from a peak
+                    i1 = min(len(self.x_norm) - 1, peak_idx + 2)   # safeguarded right index from a peak
+                    local_dx = np.median(np.diff(self.x_norm[i0:i1 + 1]))  # local to a peak sampling rate
+                    if fwhm_x >= tol and fwhm_x < 1.0:  # check that FWHM is meaningful => add the detected peak
+                        peaks_width.append(fwhm_x); x_peaks.append(self.x_norm[peaks[i_max_prom]])
+                        min_dx = max(1.95*local_dx, tol); peaks_min_width.append(min_dx)
+            # Detecting and evaluating valleys
+            valleys, valleys_props = find_peaks(-self.y_norm, distance=3, prominence=(None, None), width=(None, None))
+            if len(valleys) > 0:
+                # Get the peak with max prominence
+                i_max_prom = np.argmax(valleys_props["prominences"])
+                if valleys_props["prominences"][i_max_prom] >= min_prominence:
+                    # Calculate FWHM estimate based on the returned left and right indices
+                    indices = np.arange(len(self.x_norm))  # original data indices
+                    x_left = np.interp(valleys_props["left_ips"][i_max_prom], indices, self.x_norm)  # interpolate X value based on float index
+                    x_right = np.interp(valleys_props["right_ips"][i_max_prom], indices, self.x_norm)  # again, interpolation
+                    fwhm_x = x_right - x_left 
+                    # Calculate local sampling rate around the found valley
+                    valley_idx = valleys[i_max_prom]
+                    i0 = max(0, valley_idx - 2)  # safeguarded left index from a peak
+                    i1 = min(len(self.x_norm) - 1, valley_idx + 2)   # safeguarded right index from a peak
+                    local_dx = np.median(np.diff(self.x_norm[i0:i1 + 1]))  # local to a valley sampling rate
+                    # Combine all measurements if starting FWHM is meaningful
+                    if fwhm_x >= tol and fwhm_x < 1.0:  # check that FWHM is meaningful => add the detected peak
+                        valleys_width.append(fwhm_x); x_valleys.append(self.x_norm[valleys[i_max_prom]])
+                        min_dx = max(1.95*local_dx, tol); valleys_min_width.append(min_dx)
         # Transfer collected data to the class variable
-        self.peak_props = PeakEstimate(x_peaks=tuple(x_peaks), peaks_width=tuple(peaks_width),
-                                       x_valleys=tuple(x_valleys), valleys_width=tuple(valleys_width))
+        self.peak_props = PeakEstimate(x_peaks=tuple(x_peaks), peaks_width=tuple(peaks_width), peaks_min_width=tuple(peaks_min_width),
+                                       x_valleys=tuple(x_valleys), valleys_width=tuple(valleys_width),
+                                       valleys_min_width=tuple(valleys_min_width))
+        
+    def _fit_candidates(self, function: Callable, init_params: dict, limits: dict) -> tuple[FloatArray, FloatArray, float, float]:
+        f_name = function.__name__; fitted_funcs_props: list[tuple[FloatArray, FloatArray, float, float]] = [] 
+        pk = "peak"; vk = "valley"
+        if f_name in init_params_idx:
+            # Fitting variants of peaks
+            for x_peak, peak_width, peak_min_w in zip(self.peak_props.x_peaks, self.peak_props.peaks_width, 
+                                                      self.peak_props.peaks_min_width, strict=True):
+                # Correct parameters limits and initial parameter guess using the estimated peak and width values
+                i_w = init_params_idx[f_name]['w']; i_p = init_params_idx[f_name]['m']  # get parameters indices for func. def.
+                init_params[pk][i_p] = x_peak  # modify initial guess based on est.
+                # Sanity check and modification of parameters low and upper limits
+                param_width = get_width_from_fwhm(f_name, peak_width, init_params[pk])  # calculate func. param. width based on FWHM
+                min_width = get_width_from_fwhm(f_name, peak_min_w, init_params[pk])  # adjust min allowed width 
+                limits[pk][0][i_w] = min_width; init_w = max(param_width, min_width)  # check the initial width >= minimal width
+                init_w = min(init_w, 0.985 * limits[pk][1][i_w])  # initial width check against max calculated width
+                init_params[pk][i_w] = init_w  # using checked initial parameter
+                try:
+                    fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=init_params[pk], bounds=limits[pk])
+                    y_f = function(self.x_norm, *fitted_f_params); diff_y = self.y_norm - y_f
+                    rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
+                    fitted_funcs_props.append((fitted_f_params, pcov, rmse, mae))
+                except RuntimeError:
+                    pass
+            # Fitting variants of valleys
+            for x_valley, valley_width, valley_min_w in zip(self.peak_props.x_valleys, self.peak_props.valleys_width,
+                                                            self.peak_props.valleys_min_width, strict=True):
+                # Correct parameters limits and initial parameter guess using the estimated peak and width values
+                i_w = init_params_idx[f_name]['w']; i_p = init_params_idx[f_name]['m']  # get parameters indices for func. def.
+                init_params[vk][i_p] = x_valley  # modify initial guess based on est.
+                # Sanity check and modification of parameters low and upper limits
+                param_width = get_width_from_fwhm(f_name, valley_width, init_params[vk])  # calculate func. param. width based on FWHM
+                min_width = get_width_from_fwhm(f_name, valley_min_w, init_params[vk])  # adjust min allowed width 
+                limits[vk][0][i_w] = min_width; init_w = max(param_width, min_width)  # check the initial width >= minimal width
+                init_w = min(init_w, 0.985 * limits[vk][1][i_w])  # initial width check against max calculated width
+                init_params[vk][i_w] = init_w  # using checked initial parameter
+                try:
+                    fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=init_params[vk], bounds=limits[vk])
+                    y_f = function(self.x_norm, *fitted_f_params); diff_y = self.y_norm - y_f
+                    rmse = np.sqrt(np.mean((diff_y)**2)); mae = np.mean(np.abs(diff_y))
+                    fitted_funcs_props.append((fitted_f_params, pcov, rmse, mae))
+                except RuntimeError:
+                    pass
+            if len(fitted_funcs_props) == 0:
+                raise RuntimeError("\nAll fits are unsuccessful")  # will be handled by the outer calling function
+            else:
+                fitted_funcs_props.sort(key=lambda x: x[2])  # sort all functions
+                return fitted_funcs_props[0]  # fit with the smallest RMSE
+        else:
+            raise ValueError(f"\nProvided function '{f_name}' expected to have 'width' and 'extreme' parameters")
 
     # %% Static useful methods
     @staticmethod

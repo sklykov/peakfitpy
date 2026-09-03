@@ -388,7 +388,36 @@ def get_fwhm_generic(f_name: str, f_params: FitParams) -> float | None:
         __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
         warnings.warn(__warn_mess, stacklevel=2)
         return None
+    
 
+def get_width_from_fwhm(f_name: str, fwhm: float, f_params: FitParams = ()) -> float:
+    if f_name in funcs_with_fwhm:
+        if f_name == "gaussian_f" or f_name == "gaussian_leveled_f":
+            return fwhm / (2.0*sqrt(2.0*log(2.0)))
+        elif f_name == "lorentzian_f":
+            return fwhm / 2.0
+        elif f_name == "bump_f":
+            return fwhm / (2.0*(sqrt(log(2.0)/(1.0 + log(2.0)))))
+        elif f_name == "sech_f":
+            return fwhm / (2.0*acosh(2.0))
+        elif f_name == "logistic_derivative_f":
+            return fwhm / (4.0*log(1.0 + sqrt(2)))
+        elif f_name == "rayleigh_pdf_f" or f_name == "rayleigh_pdf_mirrored_f":
+            return fwhm / (1.60252)
+        elif f_name == "laplace_pdf_f":
+            return fwhm / (2.0*log(2.0))
+        elif f_name == "generalized_gaussian_f":
+            w, st, m, k, d = f_params
+            return fwhm / (2.0*log(2.0)**(1.0/st))
+        elif f_name == "moffat_f":
+            k, m, w, beta, d = f_params
+            return fwhm / (2.0*sqrt(2.0**(1.0/beta) - 1.0))
+        elif f_name == "sinc_sq_f":
+            return fwhm / 2.78311
+    else:
+        __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
+        warnings.warn(__warn_mess, stacklevel=2)
+        return fwhm
 
 # %% Define fitting parameter bounds
 # Restrictions on fitting parameters for curve_fit method, e.g. for Gaussian: k - not restricted, b - to the padded X range, sigma > tol,
@@ -442,3 +471,6 @@ params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 
                       "logistic_derivative_f": 1, "rayleigh_pdf_f": 0, "rayleigh_pdf_mirrored_f": 0, "laplace_pdf_f": 1,
                       "generalized_gaussian_f": 0, "moffat_f": 2, "sinc_sq_f": 2, "emg_f": (2, 3),
                       }
+
+# Define initial parameters indices for adjusting them
+init_params_idx = {"gaussian_leveled_f": {'w': 2, 'm': 1, 'k': 0}, "lorentzian_f": {'w': 0, 'm': 1, 'k': 2}}

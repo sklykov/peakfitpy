@@ -49,5 +49,7 @@ class PeakEstimate():
     
     x_peaks: tuple[float]
     peaks_width: tuple[float]
+    peaks_min_width: tuple[float]
     x_valleys: tuple[float]
     valleys_width: tuple[float]
+    valleys_min_width: tuple[float]
