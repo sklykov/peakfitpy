@@ -43,13 +43,13 @@ from .fit_models import (
 from .results import Fit1DResult, PeakEstimate, PeakResult
 from .utils.model_utils import (
     default_f_params,
-    init_params_idx,
     full_f_names,
     funcs_with_fwhm,
     generic_f_names,
     get_fwhm_generic,
     get_peak,
     get_width_from_fwhm,
+    init_params_idx,
     params_boundaries,
     params_w_min_index,
     symmetric_f_names,
@@ -293,38 +293,24 @@ class PeakFit1D():
                             # Sampling-based minimum width corresponding to approx. FWHM_min ~= 2*x_sampling for most supported profiles
                             if f_name in params_w_min_index and f_name not in init_params_idx:
                                 ix = params_w_min_index.get(f_name, None)
-                                if isinstance(ix, int):
-                                    # below not exactly 2.0 coefficient for min FWHM allowed => fails for 3 points Gaussian fitting (~= max)
-                                    if isinstance(params, list):
-                                        params_limits[0][ix] = 1.975*self.x_sampling*params_limits[1][ix]
-                                        params[ix] = params_limits[0][ix] if params[ix] < params_limits[0][ix] else params[ix]
-                                    # Limits calculated repeatedly for peak and valley case (pk and vk keys)
-                                    elif isinstance(params, dict):
-                                        params_limits[pk][0][ix] = 1.975*self.x_sampling*params_limits[pk][1][ix]
-                                        params_limits[vk][0][ix] = 1.975*self.x_sampling*params_limits[vk][1][ix]
-                                        lim_p = params_limits[pk][0][ix]; lim_v = params_limits[vk][0][ix]
-                                        params[pk][ix] = lim_p if params[pk][ix] < lim_p else params[pk][ix]
-                                        params[vk][ix] = lim_v if params[vk][ix] < lim_v else params[vk][ix]
-                                elif isinstance(ix, tuple):  # special case of EMG distribution, get the estimations
-                                    i, j = ix
-                                    if isinstance(params, list):
-                                        params_limits[0][i] = self.x_sampling; params_limits[0][j] = self.x_sampling
-                                        params[i] = self.x_sampling if params[i] < self.x_sampling else params[i]
-                                        params[j] = self.x_sampling if params[j] < self.x_sampling else params[j]
-                                    elif isinstance(params, dict):
-                                        params_limits[pk][0][i] = self.x_sampling; params_limits[pk][0][j] = self.x_sampling
-                                        params_limits[vk][0][i] = self.x_sampling; params_limits[vk][0][j] = self.x_sampling
-                                        params[pk][i] = self.x_sampling if params[pk][i] < self.x_sampling else params[pk][i]
-                                        params[vk][i] = self.x_sampling if params[vk][i] < self.x_sampling else params[vk][i]
-                                        params[pk][j] = self.x_sampling if params[pk][j] < self.x_sampling else params[pk][j]
-                                        params[vk][j] = self.x_sampling if params[vk][j] < self.x_sampling else params[vk][j]
+                                if f_name == "gaussian_f" and isinstance(ix, int):
+                                    params_limits[0][ix] = 1.975*self.x_sampling*params_limits[1][ix]
+                                    params[ix] = params_limits[0][ix] if params[ix] < params_limits[0][ix] else params[ix]
+                                elif f_name == "emg_f" and isinstance(ix, tuple):
+                                    i: int; j: int; i, j = ix
+                                    params_limits[pk][0][i] = self.x_sampling; params_limits[pk][0][j] = self.x_sampling
+                                    params_limits[vk][0][i] = self.x_sampling; params_limits[vk][0][j] = self.x_sampling
+                                    params[pk][i] = 1.025*self.x_sampling if params[pk][i] < self.x_sampling else params[pk][i]
+                                    params[vk][i] = 1.025*self.x_sampling if params[vk][i] < self.x_sampling else params[vk][i]
+                                    params[pk][j] = 1.025*self.x_sampling if params[pk][j] < self.x_sampling else params[pk][j]
+                                    params[vk][j] = 1.025*self.x_sampling if params[vk][j] < self.x_sampling else params[vk][j]
                             # Below - restricted on parameters fitting using 'trf' method by default for unimodal parameters
-                            if isinstance(params, list):
+                            if isinstance(params, list):  # general call on the initial parametrs - possible function without estimated FWHM
                                 fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
                             # Fit two default set of parameters - for peak and valley, and compare their RMSE
-                            elif isinstance(params, dict) and f_name not in init_params_idx:
+                            elif isinstance(params, dict) and f_name not in init_params_idx:  # Gaussian only function
                                 fitted_f_params, pcov, rmse, mae = self._fit_best_pv_variant(function, params, params_limits)
-                            elif isinstance(params, dict) and f_name in init_params_idx:
+                            elif isinstance(params, dict) and f_name in init_params_idx:  # All functions with FWHM, except Gaussian
                                 fitted_f_params, pcov, rmse, mae = self._fit_candidates(function, params, params_limits)
                         # Calculate or reassign some metrics based on the fitted parameters
                         if pcov is not None:
@@ -982,8 +968,39 @@ class PeakFit1D():
                                        valleys_min_width=tuple(valleys_min_width))
         
     def _fit_candidates(self, function: Callable, init_params: dict, limits: dict) -> tuple[FloatArray, FloatArray, float, float]:
+        """
+        Fit estimated candidates of peak / valley positions and related width for the provided function.
+
+        Parameters
+        ----------
+        function : Callable
+            Function with peak and FWHM.
+        init_params : dict
+            Initial parameters stored in the 'models_utils' and used for plotting.
+        limits : dict
+            Default limits stored in the 'models_utils' that will be substituted by the estimated candidates.
+
+        Returns
+        -------
+        FloatArray
+            Fitted function parameters.
+        FloatArray
+            'pcov' matrix - output of the 'curve_fit' method.
+        float
+            RMSE.
+        float
+            MAE.
+
+        Raises
+        ------
+        RuntimeError
+            If no fit was successful - should be handled by the caller method.
+        ValueError
+            If the function wrongly called for the function which name isn't recorded as key in 'init_params_idx' dict.
+            
+        """
         f_name = function.__name__; fitted_funcs_props: list[tuple[FloatArray, FloatArray, float, float]] = [] 
-        pk = "peak"; vk = "valley"
+        pk = "peak"; vk = "valley"; shape_dependent_funcs = ("moffat_f", "generalized_gaussian_f")
         if f_name in init_params_idx:
             # Fitting variants of peaks
             for x_peak, peak_width, peak_min_w in zip(self.peak_props.x_peaks, self.peak_props.peaks_width, 
@@ -993,8 +1010,11 @@ class PeakFit1D():
                 init_params[pk][i_p] = x_peak  # modify initial guess based on est.
                 # Sanity check and modification of parameters low and upper limits
                 param_width = get_width_from_fwhm(f_name, peak_width, init_params[pk])  # calculate func. param. width based on FWHM
-                min_width = get_width_from_fwhm(f_name, peak_min_w, init_params[pk])  # adjust min allowed width 
-                limits[pk][0][i_w] = min_width; init_w = max(param_width, min_width)  # check the initial width >= minimal width
+                if f_name not in shape_dependent_funcs:
+                    min_width = get_width_from_fwhm(f_name, peak_min_w, init_params[pk]); limits[pk][0][i_w] = min_width
+                else: 
+                    min_width = tol  # keep it at the minimal value for the functions defining shape based on parameters
+                init_w = max(param_width, min_width)  # check the initial width >= minimal width
                 init_w = min(init_w, 0.985 * limits[pk][1][i_w])  # initial width check against max calculated width
                 init_params[pk][i_w] = init_w  # using checked initial parameter
                 try:
@@ -1012,8 +1032,11 @@ class PeakFit1D():
                 init_params[vk][i_p] = x_valley  # modify initial guess based on est.
                 # Sanity check and modification of parameters low and upper limits
                 param_width = get_width_from_fwhm(f_name, valley_width, init_params[vk])  # calculate func. param. width based on FWHM
-                min_width = get_width_from_fwhm(f_name, valley_min_w, init_params[vk])  # adjust min allowed width 
-                limits[vk][0][i_w] = min_width; init_w = max(param_width, min_width)  # check the initial width >= minimal width
+                if f_name not in shape_dependent_funcs:
+                    min_width = get_width_from_fwhm(f_name, valley_min_w, init_params[vk]); limits[vk][0][i_w] = min_width
+                else:
+                    min_width = tol  # keep it at the minimal value for the functions defining shape based on parameters
+                init_w = max(param_width, min_width)  # check the initial width >= minimal width
                 init_w = min(init_w, 0.985 * limits[vk][1][i_w])  # initial width check against max calculated width
                 init_params[vk][i_w] = init_w  # using checked initial parameter
                 try:

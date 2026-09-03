@@ -391,6 +391,29 @@ def get_fwhm_generic(f_name: str, f_params: FitParams) -> float | None:
     
 
 def get_width_from_fwhm(f_name: str, fwhm: float, f_params: FitParams = ()) -> float:
+    """
+    Get width parameter for the function based on provided FWHM.
+
+    Parameters
+    ----------
+    f_name : str
+        Function name, can be get as f.__name__ where f - function from an implemented above functions. \n
+        Note that not all functions from this module has the analytically calculated FWHM, e.g. polynomials.
+        List of implemented functions: gaussian_f, gaussian_leveled_f, lorentzian_f, bump_f, sech_f, laplace_pdf_f, \n
+        logistic_derivative_f, rayleigh_pdf_f, rayleigh_pdf_mirrored_f, generalized_gaussian_f, moffat_f, sinc_sq_f. \n
+        Note that width parameter naming depends on the used in this module parameter list and naming, \n
+        e.g. for 'gaussian_f' - parameter 'c'.
+    fwhm : float
+        Full Width at Half-Maximum (FWHM).
+    f_params : FitParams (Sequence[float] | NDArray[np.floating[Any]]), optional
+        Required Sequence of all parameters for functions 'generalized_gaussian_f' and 'moffat_f'. The default is ().
+
+    Returns
+    -------
+    float
+        Width parameter for each function estimated from FWHM.
+        
+    """
     if f_name in funcs_with_fwhm:
         if f_name == "gaussian_f" or f_name == "gaussian_leveled_f":
             return fwhm / (2.0*sqrt(2.0*log(2.0)))
@@ -414,6 +437,10 @@ def get_width_from_fwhm(f_name: str, fwhm: float, f_params: FitParams = ()) -> f
             return fwhm / (2.0*sqrt(2.0**(1.0/beta) - 1.0))
         elif f_name == "sinc_sq_f":
             return fwhm / 2.78311
+        else:
+            __warn_mess = f"\nProvided function '{f_name}' hasn't been found between implemented FWHM functions, check the call"
+            warnings.warn(__warn_mess, stacklevel=2)
+            return fwhm
     else:
         __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
         warnings.warn(__warn_mess, stacklevel=2)
@@ -473,4 +500,10 @@ params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 
                       }
 
 # Define initial parameters indices for adjusting them
-init_params_idx = {"gaussian_leveled_f": {'w': 2, 'm': 1, 'k': 0}, "lorentzian_f": {'w': 0, 'm': 1, 'k': 2}}
+init_params_idx = {"gaussian_leveled_f": {'w': 2, 'm': 1, 'k': 0}, "lorentzian_f": {'w': 0, 'm': 1, 'k': 2},
+                   "sech_f": {'w': 1, 'm': 2, 'k': 0}, "bump_f": {'w': 0, 'm': 2, 'k': 1}, 
+                   "logistic_derivative_f": {'w': 1, 'm': 2, 'k': 0}, "rayleigh_pdf_f": {'w': 0, 'm': 2, 'k': 1}, 
+                   "rayleigh_pdf_mirrored_f": {'w': 0, 'm': 2, 'k': 1}, "laplace_pdf_f": {'w': 1, 'm': 0, 'k': 2}, 
+                   "moffat_f": {'w': 2, 'm': 1, 'k': 0}, "sinc_sq_f": {'w': 2, 'm': 1, 'k': 0},
+                   "generalized_gaussian_f": {'w': 0, 'm': 2, 'k': 3},
+                   }
