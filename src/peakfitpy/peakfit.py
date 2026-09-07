@@ -306,7 +306,7 @@ class PeakFit1D():
                                     params[pk][j] = 1.025*self.x_sampling if params[pk][j] < self.x_sampling else params[pk][j]
                                     params[vk][j] = 1.025*self.x_sampling if params[vk][j] < self.x_sampling else params[vk][j]
                             # Below - restricted on parameters fitting using 'trf' method by default for unimodal parameters
-                            if isinstance(params, list):  # general call on the initial parametrs - possible function without estimated FWHM
+                            if isinstance(params, list):  # general call on the initial parameters - possible function without estimated FWHM
                                 fitted_f_params, pcov = curve_fit(function, self.x_norm, self.y_norm, p0=params, bounds=params_limits)
                             # Fit two default set of parameters - for peak and valley, and compare their RMSE
                             elif isinstance(params, dict) and f_name not in init_params_idx:  # Gaussian only function

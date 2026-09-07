@@ -48,7 +48,8 @@ test_fallback_fit = False  # transferred to a test suit - fallback to the previo
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
 test_results_values = True  # test the results scaling and correctness of fitting
-test_noise_recover = False  # for later experimenting with the stability against the noise  
+test_common_fits = True  # test the commong fitting scenarios for stability and transfer to test suits / documentation
+test_noise_recover = False  # for later experimenting with the stability against the noise
 
 
 # %% Only for development purposes
@@ -163,7 +164,7 @@ if __name__ == "__main__":
         # winning below - Gaussian with the peak close to the start, if filter_line_fit is False
         pf.find_best_fit(filter_spikes=True, filter_line_fit=True, include_funcs=(lorentzian_f, gaussian_f, generalized_gaussian_f),
                          verbose=True, plot_best_fit=True)
-    
+
     if test_flat_peak:
         n_points = 51; x = np.linspace(start=0.0, stop=1.0, num=n_points)
         y = (x - 0.4)**4  # flat valley at 0.4
@@ -175,16 +176,16 @@ if __name__ == "__main__":
         pf = PeakFit1D(x, y); bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                                        include_funcs=(quartic_polynomial, cubic_polynomial, parabola_f))
         # assert bf_n == quartic_polynomial.__name__ and p.is_defined and p.is_peak and 0.65 <= p.x <= 0.69
-    
+
     if test_results_values:
         n_points = 101; x = np.linspace(start=0.0, stop=1.0, num=n_points)*1E2 + 5.0
         k, b, c, d = default_f_params[gaussian_leveled_f.__name__]["peak"]
         # Test shifted valley fitting
         y = gaussian_leveled_f(x, k-2.0, b+22.5, c*50.0, d+16.0)
         pf = PeakFit1D(x, y)
-        # Tested: gaussian_leveled_f: RMSE = 0.0, lorentzian_f: RMSE = 0.040933, generalized_gaussian_f: RMSE = 0.0, 
+        # Tested: gaussian_leveled_f: RMSE = 0.0, lorentzian_f: RMSE = 0.040933, generalized_gaussian_f: RMSE = 0.0,
         # emg_f: RMSE = 0.00023, sech_f: RMSE = 0.023, bump_f: RMSE = 0.046016, logistic_derivative_f: RMSE = 0.01355,
-        # rayleigh_pdf_f: RMSE = 0.047928, rayleigh_pdf_mirrored_f: RMSE = 0.046638, laplace_pdf_f: RMSE = 0.054485, 
+        # rayleigh_pdf_f: RMSE = 0.047928, rayleigh_pdf_mirrored_f: RMSE = 0.046638, laplace_pdf_f: RMSE = 0.054485,
         # moffat_f: RMSE = 0.005879, sinc_sq_f: RMSE = 0.017332
         bf, p = pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True,
                                  include_funcs=(lorentzian_f, sinc_sq_f, generalized_gaussian_f, emg_f, sech_f,
@@ -209,7 +210,18 @@ if __name__ == "__main__":
         assert p is not None and p.is_peak, "Peak should be defined"
         assert max_rmse_all < 0.055, "Max norm. RMSE exceeds expected value of 0.055"
         assert max_rmse_f.function.__name__ == "laplace_pdf_f", "Expected Laplace Function with worst RMSE"
-        
+
+    if test_common_fits:
+        # 15
+        x_left = np.asarray([0.0, 0.045, 0.085, 0.121, 0.143, 0.164, 0.18, 0.195, 0.221, 0.262,
+                             0.332, 0.45, 0.6, 0.781, 1.0])
+        x_right = 1.0 - x_left[::-1]
+        C_LEFT = 0.183; C_RIGHT = 0.817  # centers
+        sigma_rayleigh = 0.07; k_rayleigh = 1.2 * sigma_rayleigh * np.exp(0.5)  # specific Rayleigh parameters
+        y = gaussian_leveled_f(x_left, *[1.3, C_LEFT, 0.075, 0.2])
+        y = PeakFit1D.add_awgn(y, noise_fraction=0.05)
+        pf = PeakFit1D(x_left, y); pf.find_best_fit(verbose=True, plot_best_fit=True)
+
     # Check the recovery rate of fittings
     if test_noise_recover:
         pass
