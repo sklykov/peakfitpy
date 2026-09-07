@@ -32,7 +32,7 @@ from peakfitpy.utils.model_utils import (
     default_f_params,
 )
 
-plot_all_curves_with_defaults = True  # for checking default parameters consistency
+plot_all_curves_with_defaults = False  # for checking default parameters consistency
 test_simple_case = False  # common manual test - well-defined peak
 test_not_implemented_f = False  # Test not implemented function what should be still fitted
 test_line = False  # edge case - 2 points
@@ -43,7 +43,7 @@ test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
 test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = False  # tests the sorting of input X and Y data during initialization
-test_needle_spike = True  # test filtering out needle-like peak and criterion to filter it out
+test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
@@ -217,11 +217,19 @@ if __name__ == "__main__":
                              0.332, 0.45, 0.6, 0.781, 1.0])
         x_right = 1.0 - x_left[::-1]
         C_LEFT = 0.183; C_RIGHT = 0.817  # centers
+        _seed = 200
         sigma_rayleigh = 0.07; k_rayleigh = 1.2 * sigma_rayleigh * np.exp(0.5)  # specific Rayleigh parameters
+        # shifted to the left peak
         y = gaussian_leveled_f(x_left, *[1.3, C_LEFT, 0.075, 0.2])
-        y = PeakFit1D.add_awgn(y, noise_fraction=0.05)
-        pf = PeakFit1D(x_left, y); pf.find_best_fit(verbose=True, plot_best_fit=True)
-
+        y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+        pf = PeakFit1D(x_left, y); fr1ic, pr1ic = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="IC")
+        fr1rmse, pr1rmse = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+        # symmetric valley 
+        y = gaussian_leveled_f(x_right, *[-1.3, C_RIGHT, 0.075, 1.5])
+        y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+        pf = PeakFit1D(x_right, y)
+        fr2, pr2 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+        
     # Check the recovery rate of fittings
     if test_noise_recover:
         pass
