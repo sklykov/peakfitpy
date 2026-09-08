@@ -157,7 +157,10 @@ class PeakFit1D():
         # Normalize X data for the uniform range [0.0, 1.0] for improving numerical fit stability
         self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
         if self.x_range != 0.0:
-            self.x_norm = (self.x_vals.copy() - self.x_min).astype(np.float64) / self.x_range  # normalization to the [0.0, 1.0] range
+            # normalization to the [0.0, 1.0] range
+            self.x_norm = (self.x_vals.copy().astype(np.float64) - self.x_min.astype(np.float64)) / self.x_range.astype(np.float64)
+            if not np.isfinite(self.x_norm).all():
+                raise ValueError("\nInput X data after conversion to 'float64' contain some infinity values")
             self.x_sampling = np.median(np.diff(self.x_norm))  # making estimation of X data sampling, works best for even sampling
             if 1e-7 <= self.x_sampling < 1e-6:
                 if self.x_norm.shape[0] > 1E6:
@@ -174,7 +177,9 @@ class PeakFit1D():
         # Normalize Y data to the range [0.0, 1.0]
         self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
         if self.y_range != 0.0:
-            self.y_norm = (self.y_vals.copy() - self.y_min).astype(np.float64) / self.y_range  # min-max normalization
+            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min.astype(np.float64)) / self.y_range.astype(np.float64)
+            if not np.isfinite(self.y_norm).all():
+                raise ValueError("\nInput Y data after conversion to 'float64' contain some infinity values")
         else:
             raise ValueError("\nProvided Y values are identical (constant)")
         self.estimate_peak_props()  # perform analysis once on the input X and Y data for retrieving possible peak's position and width

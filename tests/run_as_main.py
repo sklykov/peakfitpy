@@ -41,7 +41,7 @@ test_noisy_parabola = False  # not transferred to the test_fitting, just checkin
 test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with a peak
 test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
-test_pure_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
+test_heavy_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = False  # tests the sorting of input X and Y data during initialization
 test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         pf = PeakFit1D(x, y); pf.find_best_fit(True, True); is_peak, xp, yp = pf.get_peak_values()
 
     # Check that disturbed by heavy noise (STD=1.0 of normalized noise) fitting doesn't produce needle-like peak
-    if test_pure_noise:
+    if test_heavy_noise:
         x = np.linspace(0.0, 1.0); params = default_f_params[gaussian_f.__name__]
         y = 5.0*gaussian_f(x, *params); y = PeakFit1D.add_awgn(y, noise_fraction=1.0)
         pf = PeakFit1D(x, y); pf.find_best_fit(filter_spikes=True, plot_best_fit=True, selection_criterion="IC")
@@ -229,6 +229,8 @@ if __name__ == "__main__":
         y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
         pf = PeakFit1D(x_right, y)
         fr2, pr2 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+        # shifted valley
+        
         
     # Check the recovery rate of fittings
     if test_noise_recover:
