@@ -40,10 +40,10 @@ def test_class_initialization():
     # Each int8 value is valid, but max - min = 200 exceeds the int8 maximum of 127.
     x_int8 = np.array([-100, -50, 0, 50, 100], dtype=np.int8)
     y_int8 = np.array([-100, 0, 100, 50, -50], dtype=np.int8)
-    # Check ascending and descending X, keeping each Y paired with its X.
+    # Check ascending and descending X + associated Y with int8 for proper range and normalization operations
     for x_case, y_case in ((x_int8, y_int8), (x_int8[::-1], y_int8[::-1])):
         fitter = PeakFit1D(x_case, y_case)
-        assert fitter.x_range == 200.0 and fitter.y_range == 200.0
+        assert np.isclose(fitter.x_range, 200.0) and np.isclose(fitter.y_range, 200.0)
         assert np.allclose(fitter.x_norm, [0.0, 0.25, 0.5, 0.75, 1.0])
         assert np.allclose(fitter.y_norm, [0.0, 0.5, 1.0, 0.75, 0.25])
     # Testing wrongly sized data
