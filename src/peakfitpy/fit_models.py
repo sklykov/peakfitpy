@@ -61,7 +61,7 @@ def gaussian_f(X: FloatArray | float, k: float, b: float, c: float) -> FloatArra
     Returns
     -------
     FloatArray
-        Y = k*exp((-(X-b)^2)/2*c^2).
+        Y = k*exp((-(X-b)^2)/(2*c^2)).
 
     """
     return k*np.exp(-(np.power(X-b, 2))/(2.0*(c**2)))
@@ -89,7 +89,7 @@ def gaussian_leveled_f(X: FloatArray | float, k: float, b: float, c: float, d: f
     Returns
     -------
     FloatArray | float
-        Y = k*exp((-(X-b)^2)/2*c^2) + d.
+        Y = k*exp((-(X-b)^2)/(2*c^2)) + d.
 
     """
     return k*np.exp(-np.power(X-b, 2)/(2.0*(c**2))) + d
@@ -140,7 +140,7 @@ def lorentzian_f(X: FloatArray | float, a: float, b: float, k: float, d: float) 
     a : float
         See equation (gamma value).
     b : float
-        See equation. Mean value (x0).
+        See equation. Symmetry center (x0).
     k : float
         Scaling coefficient (detached from 'a' or gamma value).
     d : float
@@ -307,7 +307,7 @@ def rayleigh_pdf_f(X: FloatArray | float, sigma: float, k: float, b: float, d: f
     """
     Parametric Rayleigh distribution PDF function.
 
-    Equation: Y = (k*(X-b) / sigma^2)*exp(-(X-b)^2/2*sigma^2) + d for x >= b else d  \n
+    Equation: Y = (k*(X-b) / sigma^2)*exp(-(X-b)^2/(2*sigma^2)) + d for x >= b else d  \n
     Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
 
     Parameters
@@ -326,7 +326,7 @@ def rayleigh_pdf_f(X: FloatArray | float, sigma: float, k: float, b: float, d: f
     Returns
     -------
     FloatArray | float
-        Y = (k*(X-b) / sigma^2)*exp(-(X-b)^2/2*sigma^2) + d for x >= b else d.
+        Y = (k*(X-b) / sigma^2)*exp(-(X-b)^2/(2*sigma^2)) + d for x >= b else d.
 
     """
     sigma2 = sigma**2; X_shifted = X - b
@@ -337,7 +337,7 @@ def rayleigh_pdf_mirrored_f(X: FloatArray | float, sigma: float, k: float, b: fl
     """
     Parametric mirrored Rayleigh distribution PDF function.
 
-    Equation: Y = (k*(b-X) / sigma^2)*exp(-(b-X)^2/2*sigma^2) + d for x <= b else d  \n
+    Equation: Y = (k*(b-X) / sigma^2)*exp(-(b-X)^2/(2*sigma^2)) + d for x <= b else d  \n
     Source: https://en.wikipedia.org/wiki/Rayleigh_distribution
 
     Parameters
@@ -356,7 +356,7 @@ def rayleigh_pdf_mirrored_f(X: FloatArray | float, sigma: float, k: float, b: fl
     Returns
     -------
     FloatArray | float
-        Y = (k*(b-X) / sigma^2)*exp(-(b-X)^2/2*sigma^2) + d for x <= b else d .
+        Y = (k*(b-X) / sigma^2)*exp(-(b-X)^2/(2*sigma^2)) + d for x <= b else d .
 
     """
     sigma2 = sigma**2; X_shifted = b - X
@@ -512,7 +512,7 @@ def emg_f(X: FloatArray | float, k: float, m: float, sigma: float, tau: float, d
     """
     Callable parametrized exponentially modified Gaussian distribution (EMG) PDF.
 
-    Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma) + d.
+    Y = k*scipy.stats.exponnorm.pdf(X, K=tau/sigma, loc=m, scale=sigma) + d.
 
     Parameters
     ----------
@@ -525,14 +525,14 @@ def emg_f(X: FloatArray | float, k: float, m: float, sigma: float, tau: float, d
     sigma : float
         Gaussian width scaling.
     tau : float
-        Exponentially decay.
+        Exponential decay scale.
     d : float
         Constant baseline addition.
 
     Returns
     -------
     FloatArray | float
-        Y = k*scipy.stats.exponnorm(X, K=tau/sigma, loc=m, scale=sigma) + d.
+        Y = k*scipy.stats.exponnorm.pdf(X, K=tau/sigma, loc=m, scale=sigma) + d.
 
     """
     K = tau / sigma  # as used by SciPy

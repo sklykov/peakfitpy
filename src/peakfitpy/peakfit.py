@@ -155,10 +155,11 @@ class PeakFit1D():
             else:
                 raise ValueError("\nProvided X data doesn't contain all unique values (i.e. some or all values are identical)")
         # Normalize X data for the uniform range [0.0, 1.0] for improving numerical fit stability
-        self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max(); self.x_range = self.x_max - self.x_min
+        self.x_min = self.x_vals.min(); self.x_max = self.x_vals.max()
+        self.x_range = self.x_max.astype(np.float64) - self.x_min.astype(np.float64)
         if self.x_range != 0.0:
             # normalization to the [0.0, 1.0] range
-            self.x_norm = (self.x_vals.copy().astype(np.float64) - self.x_min.astype(np.float64)) / self.x_range.astype(np.float64)
+            self.x_norm = (self.x_vals.copy().astype(np.float64) - self.x_min.astype(np.float64)) / self.x_range
             if not np.isfinite(self.x_norm).all():
                 raise ValueError("\nInput X data after conversion to 'float64' contain some infinity values")
             self.x_sampling = np.median(np.diff(self.x_norm))  # making estimation of X data sampling, works best for even sampling
@@ -175,9 +176,10 @@ class PeakFit1D():
         else:
             raise ValueError("\nProvided X values are identical (constant)")
         # Normalize Y data to the range [0.0, 1.0]
-        self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max(); self.y_range = self.y_max - self.y_min
+        self.y_min = self.y_vals.min(); self.y_max = self.y_vals.max()
+        self.y_range = self.y_max.astype(np.float64) - self.y_min.astype(np.float64)
         if self.y_range != 0.0:
-            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min.astype(np.float64)) / self.y_range.astype(np.float64)
+            self.y_norm = (self.y_vals.copy().astype(np.float64) - self.y_min.astype(np.float64)) / self.y_range
             if not np.isfinite(self.y_norm).all():
                 raise ValueError("\nInput Y data after conversion to 'float64' contain some infinity values")
         else:
@@ -238,7 +240,7 @@ class PeakFit1D():
             The default is None.
         filter_spikes: bool, optional
             Flag for checking fitted functions and filter out of needle-like peaks, where fewer than 3 samples lie within \n
-            approximately 1.5×FWHM and whose RMSE under the peak is in ~2 times more than for the whole fit \n
+            approximately 1.5×FWHM or whose RMSE under the peak is in ~2 times more than for the whole fit \n
             (1-2 points only contributes to a peak). The default is False.
         filter_line_fit: bool, optional
             If line_f was not included in the fitted candidates, additionally fit a line and filter peak-shaped models
@@ -626,7 +628,7 @@ class PeakFit1D():
         plt.legend(loc='best'); plt.tight_layout()
 
     # %% Data transformers
-    def normalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
+    def normalize_x(self, x: RealScalar | nparray) -> RealScalar | FloatArray:
         """
         Normalize new (input) x values using the provided on the initialization data to the range [0, 1].
         
@@ -639,7 +641,7 @@ class PeakFit1D():
 
         Returns
         -------
-        RealScalar | nparray
+        RealScalar | FloatArray
             Normalized data.
 
         Raises
@@ -663,9 +665,9 @@ class PeakFit1D():
                 raise ValueError("\nProvided element lays out of range of the initially used x array")
             if np.isnan(x):
                 raise ValueError("\nX is NaN")
-        return (x - self.x_min) / self.x_range
+        return (x - self.x_min.astype(np.float64)) / self.x_range
 
-    def denormalize_x(self, x: RealScalar | nparray) -> RealScalar | nparray:
+    def denormalize_x(self, x: RealScalar | nparray) -> RealScalar | FloatArray:
         """
         Return denormalized (from range [0, 1]) x using originally provided X data range.
         
@@ -678,12 +680,12 @@ class PeakFit1D():
 
         Returns
         -------
-        RealScalar | nparray
+        RealScalar | FloatArray
             Denormalized input value(-s) by using of initial X range.
 
         """
         x = np.asarray(x) if isinstance(x, Sequence) else x
-        return x*self.x_range + self.x_min
+        return x*self.x_range + self.x_min.astype(np.float64)
 
     def normalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
         """
@@ -722,9 +724,9 @@ class PeakFit1D():
                 raise ValueError("\nProvided element lays out of range of the initially used y array")
             if np.isnan(y):
                 raise ValueError("\nY is NaN")
-        return (y - self.y_min) / self.y_range
+        return (y - self.y_min.astype(np.float64)) / self.y_range
 
-    def denormalize_y(self, y: RealScalar | nparray) -> RealScalar | nparray:
+    def denormalize_y(self, y: RealScalar | nparray) -> RealScalar | FloatArray:
         """
         Return denormalized y using originally provided Y data range.
         
@@ -737,15 +739,15 @@ class PeakFit1D():
 
         Returns
         -------
-        RealScalar | nparray
+        RealScalar | FloatArray
             Denormalized input value(-s) by using of initial Y range.
 
         """
         y = np.asarray(y) if isinstance(y, Sequence) else y
-        return y*self.y_range + self.y_min
+        return y*self.y_range + self.y_min.astype(np.float64)
 
     # %% Transform y = f(x) results
-    def interpolate_y(self, x: RealScalar | nparray) -> RealScalar | nparray | None:
+    def interpolate_y(self, x: RealScalar | nparray) -> RealScalar | FloatArray| None:
         """
         Get for raw input (not normalized) values the raw output from the fitted function values with same scale as original Y values.
 
@@ -758,7 +760,7 @@ class PeakFit1D():
 
         Returns
         -------
-        RealScalar | nparray | None
+        RealScalar | FloatArray | None
             Output Y values from Y = f(X) where f - best fitted function.
 
         """

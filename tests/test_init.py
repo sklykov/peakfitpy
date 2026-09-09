@@ -37,6 +37,15 @@ def test_class_initialization():
     PeakFit1D(x=x, y=y)
     x = np.asarray([11, 23, 31, 44, 56, 64]).astype(dtype=np.uint8); y = np.asarray([110, 120, 140, 129, 121, 105]).astype(dtype=np.uint8)
     PeakFit1D(x=x, y=y)
+    # Each int8 value is valid, but max - min = 200 exceeds the int8 maximum of 127.
+    x_int8 = np.array([-100, -50, 0, 50, 100], dtype=np.int8)
+    y_int8 = np.array([-100, 0, 100, 50, -50], dtype=np.int8)
+    # Check ascending and descending X, keeping each Y paired with its X.
+    for x_case, y_case in ((x_int8, y_int8), (x_int8[::-1], y_int8[::-1])):
+        fitter = PeakFit1D(x_case, y_case)
+        assert fitter.x_range == 200.0 and fitter.y_range == 200.0
+        assert np.allclose(fitter.x_norm, [0.0, 0.25, 0.5, 0.75, 1.0])
+        assert np.allclose(fitter.y_norm, [0.0, 0.5, 1.0, 0.75, 0.25])
     # Testing wrongly sized data
     try:
         x = rng.random(size=(6, 1)); y = rng.random(size=(6, 2))
