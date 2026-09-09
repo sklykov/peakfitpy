@@ -41,15 +41,16 @@ test_noisy_parabola = False  # not transferred to the test_fitting, just checkin
 test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with a peak
 test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
-test_heavy_noise = True  # initial points disturbed by AWGN with std = max - min (1.0)
+test_heavy_noise = False  # initial points disturbed by AWGN with std = max - min (1.0)
 test_sorting = False  # tests the sorting of input X and Y data during initialization
 test_needle_spike = False  # test filtering out needle-like peak and criterion to filter it out
 test_fallback_fit = False  # transferred to a test suit - fallback to the previous succesful fit
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
-test_results_values = True  # test the results scaling and correctness of fitting
+test_results_values = False  # test the results scaling and correctness of fitting
 test_common_fits = True  # test the commong fitting scenarios for stability and transfer to test suits / documentation
 test_noise_recover = False  # for later experimenting with the stability against the noise
+test_pure_noise = False  # unstable fit, result depends strongly of the input data sizes
 
 
 # %% Only for development purposes
@@ -63,8 +64,11 @@ if __name__ == "__main__":
 
     # Test fitting on the simple set
     if test_simple_case:
-        pf2 =  PeakFit1D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
+        pf2 = PeakFit1D(x=np.asarray([10, 20, 30, 40, 50, 60]), y=1E2*np.asarray([1, 1.5, 2, 2.4, 1.7, 1.24]))
         pf2.find_best_fit(verbose=True, plot_best_fit=True)
+        x = np.asarray([11, 23, 31, 44, 56, 64]).astype(dtype=np.uint8); y = np.asarray([110, 120, 140, 129, 121, 105]).astype(dtype=np.uint8)
+        pf3 = PeakFit1D(x, y); fr, pr = pf3.find_best_fit(verbose=True, plot_best_fit=True)
+        assert fr is not None and pr is not None and pr.is_peak and pr.fwhm_orig < x[4] - x[1], "Check manual fit with uint8 values"
 
     # Generate some complex examples and visualize the fitting
     if test_not_implemented_f:
@@ -212,25 +216,34 @@ if __name__ == "__main__":
         assert max_rmse_f.function.__name__ == "laplace_pdf_f", "Expected Laplace Function with worst RMSE"
 
     if test_common_fits:
-        # 15
         x_left = np.asarray([0.0, 0.045, 0.085, 0.121, 0.143, 0.164, 0.18, 0.195, 0.221, 0.262,
                              0.332, 0.45, 0.6, 0.781, 1.0])
         x_right = 1.0 - x_left[::-1]
         C_LEFT = 0.183; C_RIGHT = 0.817  # centers
         _seed = 200
-        sigma_rayleigh = 0.07; k_rayleigh = 1.2 * sigma_rayleigh * np.exp(0.5)  # specific Rayleigh parameters
+        sigma_rayleigh = 0.075; k_rayleigh = 1.5 * sigma_rayleigh * np.exp(0.5)  # specific Rayleigh parameters
         # shifted to the left peak
         y = gaussian_leveled_f(x_left, *[1.3, C_LEFT, 0.075, 0.2])
-        y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+        # y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
         pf = PeakFit1D(x_left, y); fr1ic, pr1ic = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="IC")
         fr1rmse, pr1rmse = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
-        # symmetric valley 
+        # shifted valley 
         y = gaussian_leveled_f(x_right, *[-1.3, C_RIGHT, 0.075, 1.5])
         y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
-        pf = PeakFit1D(x_right, y)
-        fr2, pr2 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+        pf = PeakFit1D(x_right, y); fr2, pr2 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
         # shifted valley
-        
+        y = moffat_f(x_right, *[-4.55, C_RIGHT, 0.3, 4.25, 2.2])
+        y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+        pf = PeakFit1D(x_right, y); fr3, pr3 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+        # Rayleigh
+        y = rayleigh_pdf_f(x_left, *[sigma_rayleigh, k_rayleigh, C_LEFT - sigma_rayleigh, 0.55])
+        y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+        pf = PeakFit1D(x_right, y); fr4, pr4 = pf.find_best_fit(verbose=True, plot_best_fit=True, selection_criterion="RMSE")
+    
+    if test_pure_noise:
+        _seed = 404; rng = np.random.default_rng(_seed)
+        x = np.linspace(start=-5.0, stop=5.0, num=225); y = rng.random(size=x.shape); pf = PeakFit1D(x, y)
+        pf.find_best_fit(verbose=True, filter_line_fit=True, filter_spikes=True, plot_best_fit=True, selection_criterion="RMSE")
         
     # Check the recovery rate of fittings
     if test_noise_recover:

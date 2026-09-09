@@ -35,6 +35,8 @@ def test_class_initialization():
     PeakFit1D(x=x, y=y)
     x = np.asarray([0.8, -1.0, 0.5, 0.3])[:, None]; y = rng.random(size=(4, 1))  # both convertible, x - random order
     PeakFit1D(x=x, y=y)
+    x = np.asarray([11, 23, 31, 44, 56, 64]).astype(dtype=np.uint8); y = np.asarray([110, 120, 140, 129, 121, 105]).astype(dtype=np.uint8)
+    PeakFit1D(x=x, y=y)
     # Testing wrongly sized data
     try:
         x = rng.random(size=(6, 1)); y = rng.random(size=(6, 2))

@@ -7,6 +7,8 @@ Test the fitting for different scenarios of PeakFit1D.
 
 """
 # %% Global imports
+from collections.abc import Callable
+
 import numpy as np
 import pytest
 
@@ -32,6 +34,7 @@ from peakfitpy.fit_models import (
     sinc_sq_f,
 )
 from peakfitpy.utils.model_utils import default_f_params
+from peakfitpy.utils.typing_utils import FloatArray
 
 
 # %% Test func-s
@@ -56,7 +59,12 @@ def test_basic_fitting():
         assert 34 <= xp <= 44 and yp >= 240, f"Defined peak {xp, yp} lays out expected ranges: x in [34, 44], y >= 240"
     else:
         raise AssertionError("\nPeak hasn't been found for the simple basic case")
-    assert is_peak, "The peak should be fitted, not valley"
+    assert is_peak is not None and is_peak, "The peak should be fitted, not valley"
+    
+    # uint8 as input values for fitting
+    x = np.asarray([11, 23, 31, 44, 56, 64]).astype(dtype=np.uint8); y = np.asarray([110, 120, 140, 129, 121, 105]).astype(dtype=np.uint8)
+    pf3 = PeakFit1D(x, y); fr, pr = pf3.find_best_fit()
+    assert fr is not None and pr is not None and pr.is_peak and pr.fwhm_orig < x[4] - x[1], "Check manual fit with uint8 values"
 
     # Test not implemented function what should be still fitted
     x = np.asarray([(1.25*i + 2.2) for i in range(20)]); b = x.mean()
@@ -245,3 +253,49 @@ def test_fitting_scenarios():
     assert p is not None and p.is_peak, "Peak should be defined"
     assert max_rmse_all < 0.055, "Max norm. RMSE exceeds expected value of 0.055"
     assert max_rmse_f.function.__name__ != "generalized_gaussian_f", "Expected that Gaussian not is the worst peak (should be the best one)"
+
+# %% Parametric fitting tests
+x_left = np.asarray([0.0, 0.045, 0.085, 0.121, 0.143, 0.164, 0.18, 0.195, 0.221, 0.262, 0.332, 0.45, 0.6, 0.781, 1.0])
+x_right = 1.0 - x_left[::-1]; _seed = 200
+C_LEFT = 0.183; C_RIGHT = 0.817  # centers
+sigma_rayleigh = 0.075; k_rayleigh = 1.5 * sigma_rayleigh * np.exp(0.5)  # specific Rayleigh parameters
+
+
+@pytest.mark.parametrize("function,x,params,expected_center,is_peak", 
+                         [(gaussian_leveled_f, x_left, [1.3, C_LEFT, 0.075, 0.2], C_LEFT, True), 
+                          (gaussian_leveled_f, x_right, [-1.3, C_RIGHT, 0.075, 1.5], C_RIGHT, False),
+                          (moffat_f, x_right, [-4.55, C_RIGHT, 0.3, 4.25, 2.2], C_RIGHT, False),
+                          (rayleigh_pdf_f, x_left, [sigma_rayleigh, k_rayleigh, C_LEFT - sigma_rayleigh, 0.55], C_LEFT, True),
+                          ]
+                        )
+def test_shifted_peaks_valleys(function: Callable, x: FloatArray, params: list[float], expected_center: float, is_peak: bool):
+    """
+    Test several shifted peaks / valleys for recovering.
+
+    Parameters
+    ----------
+    function : Callable
+        Provided parametric function.
+    x : FloatArray
+        Numpy array.
+    params : list[float]
+        Parameters for function.
+    expected_center : float
+        Expected center of function.
+    is_peak : bool
+        Flag - True for a peak, False - for a valley.
+
+    Returns
+    -------
+    None
+    
+    """
+    y = function(x, *params)
+    pf = PeakFit1D(x, y); fr, pr = pf.find_best_fit(include_funcs=(function, )); fn = function.__name__
+    assert fr is not None and pr is not None and pr.is_defined and (pr.is_peak == is_peak), f"Check parametrized fitting test for '{fn}'"
+    assert fr.rmse < 1E-4 and np.isclose(expected_center, pr.x), "Check parametrized fitting test for '{fn}'"
+    y = PeakFit1D.add_awgn(y, noise_fraction=0.06, seed=_seed)
+    pf = PeakFit1D(x, y); fr, pr = pf.find_best_fit()
+    condition = fr is not None and pr is not None and pr.is_defined and (pr.is_peak == is_peak)
+    assert condition, "Check parametrized fit test: all func-s + noise, Y function: '{fn}'"
+    assert 0.92*expected_center <= pr.x <= 1.08*expected_center, "Check parametrized fit test: all func-s + noise, Y function: '{fn}'"
