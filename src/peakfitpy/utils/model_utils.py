@@ -36,17 +36,17 @@ from .typing_utils import FitParams
 default_f_params = {"gaussian_f": [1.0, 0.5, 0.2], "parabola_f": [-4.0, 4.0, 0.0], "cubic_polynomial": [-3.472, 1.389, 2.083, 0.0],
                     "line_f": [0.0, 0.5], "quartic_polynomial": [-5.0, 12.472, -13.828, 6.356, 0.0], "constant_f": [0.5],
                     "gaussian_leveled_f": {"peak": [1.0, 0.5, 0.15, 0.0], "valley": [-1.0, 0.5, 0.15, 1.0]},
-                    "lorentzian_f": {"peak": [0.1, 0.5, pi*0.1, 0.0], "valley": [0.1, 0.5, -pi*0.1, 0.0]}, 
+                    "lorentzian_f": {"peak": [0.1, 0.5, pi*0.1, 0.0], "valley": [0.1, 0.5, -pi*0.1, 0.0]},
                     "sech_f": {"peak": [2.0, 0.125, 0.5, 0.0], "valley": [-2.0, 0.125, 0.5, 1.0]},
-                    "bump_f": {"peak": [0.5, e, 0.5, 0.0], "valley": [0.5, -e, 0.5, 1.0]}, 
-                    "logistic_derivative_f": {"peak": [4.0, 0.125, 0.5, 0.0], "valley": [-4.0, 0.125, 0.5, 1.0]}, 
+                    "bump_f": {"peak": [0.5, e, 0.5, 0.0], "valley": [0.5, -e, 0.5, 1.0]},
+                    "logistic_derivative_f": {"peak": [4.0, 0.125, 0.5, 0.0], "valley": [-4.0, 0.125, 0.5, 1.0]},
                     "rayleigh_pdf_f": {"peak": [0.25, 0.41, 0.0, 0.0], "valley": [0.25, -0.41, 0.0, 1.0]},
-                    "laplace_pdf_f": {"peak": [0.5, 0.15, 1.0, 0.0], "valley": [0.5, 0.15, -1.0, 1.0]}, 
+                    "laplace_pdf_f": {"peak": [0.5, 0.15, 1.0, 0.0], "valley": [0.5, 0.15, -1.0, 1.0]},
                     "emg_f": {"peak": [0.37, 0.35, 0.10, 0.15, 0.0], "valley": [-0.37, 0.35, 0.10, 0.15, 1.0]},
-                    "rayleigh_pdf_mirrored_f": {"peak": [0.25, 0.41, 1.0, 0.0], "valley": [0.25, -0.41, 1.0, 1.0]}, 
+                    "rayleigh_pdf_mirrored_f": {"peak": [0.25, 0.41, 1.0, 0.0], "valley": [0.25, -0.41, 1.0, 1.0]},
                     "generalized_gaussian_f": {"peak": [0.2, 3.5, 0.5, 1.0, 0.0], "valley": [0.2, 3.5, 0.5, -1.0, 1.0]},
-                    "moffat_f": {"peak": [1.0, 0.5, 0.255, 2.5, 0.0], "valley": [-1.0, 0.5, 0.255, 2.5, 1.0]}, 
-                    "sinc_sq_f": {"peak": [1.0, 0.5, 0.075, 0.0], "valley": [-1.0, 0.5, 0.075, 1.0]}, 
+                    "moffat_f": {"peak": [1.0, 0.5, 0.255, 2.5, 0.0], "valley": [-1.0, 0.5, 0.255, 2.5, 1.0]},
+                    "sinc_sq_f": {"peak": [1.0, 0.5, 0.075, 0.0], "valley": [-1.0, 0.5, 0.075, 1.0]},
                     }
 
 full_f_names = {"gaussian_f": "Gaussian", "parabola_f": "Parabola", "gaussian_leveled_f": "Gaussian + Const",
@@ -266,6 +266,8 @@ def get_peak(f: Callable, fitted_params: FitParams) -> tuple[bool, bool, float, 
                                 is_max = False; x0 = xr; y0 = y_xr
                             else:
                                 is_definable = False  # local peak / valley only
+                    else:
+                        is_definable = False  # no extreme points found
             else:  # degenerative case - effectively, this is cubic polynomial
                 is_definable, is_max, x0, y0 = get_peak(cubic_polynomial, (b, c, d, e))  # call of the method with the cubic function
         else:
@@ -388,7 +390,7 @@ def get_fwhm_generic(f_name: str, f_params: FitParams) -> float | None:
         __warn_mess = f"\nProvided function '{f_name}' not found in a list of implemented functions"
         warnings.warn(__warn_mess, stacklevel=2)
         return None
-    
+
 
 def get_width_from_fwhm(f_name: str, fwhm: float, f_params: FitParams = ()) -> float:
     """
@@ -412,7 +414,7 @@ def get_width_from_fwhm(f_name: str, fwhm: float, f_params: FitParams = ()) -> f
     -------
     float
         Width parameter for each function estimated from FWHM.
-        
+
     """
     if f_name in funcs_with_fwhm:
         if f_name == "gaussian_f" or f_name == "gaussian_leveled_f":
@@ -501,9 +503,9 @@ params_w_min_index = {"gaussian_f": 2, "gaussian_leveled_f": 2, "lorentzian_f": 
 
 # Define initial parameters indices for adjusting them
 init_params_idx = {"gaussian_leveled_f": {'w': 2, 'm': 1, 'k': 0}, "lorentzian_f": {'w': 0, 'm': 1, 'k': 2},
-                   "sech_f": {'w': 1, 'm': 2, 'k': 0}, "bump_f": {'w': 0, 'm': 2, 'k': 1}, 
-                   "logistic_derivative_f": {'w': 1, 'm': 2, 'k': 0}, "rayleigh_pdf_f": {'w': 0, 'm': 2, 'k': 1}, 
-                   "rayleigh_pdf_mirrored_f": {'w': 0, 'm': 2, 'k': 1}, "laplace_pdf_f": {'w': 1, 'm': 0, 'k': 2}, 
+                   "sech_f": {'w': 1, 'm': 2, 'k': 0}, "bump_f": {'w': 0, 'm': 2, 'k': 1},
+                   "logistic_derivative_f": {'w': 1, 'm': 2, 'k': 0}, "rayleigh_pdf_f": {'w': 0, 'm': 2, 'k': 1},
+                   "rayleigh_pdf_mirrored_f": {'w': 0, 'm': 2, 'k': 1}, "laplace_pdf_f": {'w': 1, 'm': 0, 'k': 2},
                    "moffat_f": {'w': 2, 'm': 1, 'k': 0}, "sinc_sq_f": {'w': 2, 'm': 1, 'k': 0},
                    "generalized_gaussian_f": {'w': 0, 'm': 2, 'k': 3},
                    }
