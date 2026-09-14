@@ -37,7 +37,7 @@ test_simple_case = False  # common manual test - well-defined peak
 test_not_implemented_f = False  # Test not implemented function what should be still fitted
 test_line = False  # edge case - 2 points
 test_exclude_line = False  # check that lines are excluded
-test_noisy_parabola = False  # not transferred to the test_fitting, just checking the fit
+test_noisy_parabola = True  # not transferred to the test_fitting, just checking the fit
 test_smallest_points_valley = False  # ultimately, parabola fit to 3 points with a peak
 test_4_points_peak = False  # test fitting of the peak consisting of 4 points
 test_recover = False  # test the fitting capability of noised data
@@ -48,7 +48,7 @@ test_fallback_fit = False  # transferred to a test suit - fallback to the previo
 test_linear_peak_filter = False  # transferred to a test suit - additional filtering rule for peaks from curves with FWHM
 test_flat_peak = False   # test specific case for quartic polynomial for its stability
 test_results_values = False  # test the results scaling and correctness of fitting
-test_common_fits = True  # test the commong fitting scenarios for stability and transfer to test suits / documentation
+test_common_fits = False  # test the commong fitting scenarios for stability and transfer to test suits / documentation
 test_noise_recover = False  # for later experimenting with the stability against the noise
 test_pure_noise = False  # unstable fit, result depends strongly of the input data sizes
 

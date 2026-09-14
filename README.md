@@ -1,7 +1,7 @@
 # peakfitpy
 
 Python package for fitting a set of candidate curves (functions) to 1D sampled data and retrieving the position and width 
-of a single peak or valley. 
+of a single peak or valley if either of them has been defined. 
 
 ### Rationale for Project Development
 
@@ -46,7 +46,7 @@ python -m pytest
 ```
 
 The editable installation (`-e`) lets Python use the source files directly.   
-The development tools are **pytest** for tests, **Ruff** for code checks and **mypy** for type checks.
+The development tools are `pytest` for tests, `Ruff` for code checks and `mypy` for type checks.
 
 ### Examples
 
@@ -55,14 +55,16 @@ The development tools are **pytest** for tests, **Ruff** for code checks and **m
 ```python
 import matplotlib.pyplot as plt
 import numpy as np
+
 from peakfitpy import PeakFit1D
+from peakfitpy.fit_models import emg_f
 
 x = np.linspace(-5.0, 5.0, 101)
-y = 2.0 + 3.0*np.exp(-((x - 0.7)**2)/(2.0*0.8**2))
-y = PeakFit1D.add_awgn(y, noise_fraction=0.02, seed=42)  # Repeatable Gaussian noise
+y = 2.0 + 4.0*np.exp(-((x - 1.4)**2)/(2.0*0.8**2))
+y = PeakFit1D.add_awgn(y, noise_fraction=0.028, seed=25)  # Repeatable Gaussian noise
 
 fitter = PeakFit1D(x, y)
-fit, peak = fitter.find_best_fit(selection_criterion="IC")  # Compare fits using AICc
+fit, peak = fitter.find_best_fit(selection_criterion="IC", exclude_funcs=(emg_f,))  # Compare fits using AICc
 
 if fit is not None:
     print("Selected function:", fit.function.__name__)
@@ -73,9 +75,13 @@ if fit is not None:
 
 if peak is not None:
     print("Peak" if peak.is_peak else "Valley")
-    print("Position:", peak.x_orig, peak.y_orig)
+    print("Coordinates:", peak.x_orig, peak.y_orig)
     print("FWHM:", peak.fwhm_orig)  # None when this model has no implemented FWHM
 ```
+
+The result should be:
+
+![Gaussian Fit](./docs/pics/Example_Fit.png "Gaussian Fit")  
 
 #### Selecting candidate functions
 
@@ -94,6 +100,16 @@ fit, peak = fitter.find_best_fit(
 The supported callables and their names are available as `PeakFit1D.functions` and `PeakFit1D.function_names`. 
 The constant model is separate from `PeakFit1D.polynomials`.
 
+#### Candidate curve profiles
+The symmetric curve profiles centered to the normalized X range and with other default parameters are shown:
+
+![Symmetric Profiles](./docs/pics/Symmetric_Functions_Profiles.png "Symmetric Profiles")  
+
+The generic and non-symmetric curve profiles are shown:
+
+![Generic Profiles](./docs/pics/Generic_Functions_Profiles.png "Generic Profiles")  
+
+
 ### Interpretation of fitting results
 
 The input X and Y data are normalized to [0, 1] before fitting. `fit.params`, `fit.pcov`, `fit.perr`, `fit.rmse` and `fit.mae` 
@@ -103,17 +119,18 @@ refer to this normalized fit. Use `interpolate_y(x)` for fitted Y values in the 
 FWHM describes the fitted profile at half its height relative to its baseline. For valleys, it describes half the depth. 
 It can extend outside the measured interval.
 
-The selection criteria are:
+The selection criteria of the best fitting function (curve) are:
 - `"RMSE"`: root mean square error, which gives larger residuals more influence;
-- `"MAE"`: mean absolute error, used to rank the fitted candidates;
+- `"MAE"`: mean absolute error, which treats residuals linearly and is therefore 
+ less sensitive to outliers;
 - `"IC"`: corrected Akaike information criterion (AICc), which balances fitting error against the number of function parameters.
 
 All candidates are fitted using least squares, including when MAE is used for ranking. Peak/valley variants and starting guesses 
 are compared by RMSE within each model. Available criteria can be checked through `fitter.best_fit_criteria`; AICc availability 
 is updated for the selected candidates. An unavailable criterion falls back to RMSE with a warning.
 
-`fit.pcov` is the parameter covariance estimate and `fit.perr` contains its diagonal square roots. These describe approximate 
-uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return 
+`fit.pcov` is the parameter covariance estimate and `fit.perr` contains its diagonal square roots, they are provided by SciPy `curve_fit` method.  
+They describe approximate uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return 
 `None` for both fields.
 
 ### Input requirements and limitations
@@ -131,6 +148,8 @@ X and Y must both be non-constant. If X values are unsorted, they are sorted tog
 ### Documentation and feedback
 
 The docstrings describe the public methods and model parameters. Report problems through the [issue tracker](https://github.com/sklykov/peakfit/issues), preferably with a small input example and the selected fitting options.
+
+See [API Documentation](./docs/api/index.html) for the full main module API functionality.
 
 See [CHANGELOG.md](CHANGELOG.md) for the change history.
 
