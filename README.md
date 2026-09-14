@@ -1,9 +1,9 @@
 # peakfitpy
 
-Python package for fitting a set of candidate curves (functions) to 1D sampled data and retrieving the position and width 
-of a single peak or valley if either of them has been defined. 
+Python package for comparing curve models fitted to 1D sampled data and estimating the position and width
+of a single peak or valley when the selected model supports these properties.
 
-### Rationale for Project Development
+### Why this package?
 
 A measured peak does not always follow a Gaussian profile. This package provides a common interface for comparing several curve shapes and retrieving the properties of the selected fit. It is intended for data containing a single feature of interest; overlapping peaks are not fitted as a sum of separate components.
 
@@ -32,7 +32,7 @@ To upgrade after publication:
 python -m pip install --upgrade peakfitpy
 ```
 
-Run them with the intended Python environment active.
+Run these commands with the intended Python environment active.
 
 #### Requirements
 
@@ -79,7 +79,7 @@ if peak is not None:
     print("FWHM:", peak.fwhm_orig)  # None when this model has no implemented FWHM
 ```
 
-The result should be:
+Example output:
 
 ![Gaussian Fit](./docs/pics/Example_Fit.png "Gaussian Fit")  
 
@@ -101,11 +101,11 @@ The supported callables and their names are available as `PeakFit1D.functions` a
 The constant model is separate from `PeakFit1D.polynomials`.
 
 #### Candidate curve profiles
-The symmetric curve profiles centered to the normalized X range and with other default parameters are shown:
+The following symmetric curve profiles use their default parameters within the normalized X range:
 
 ![Symmetric Profiles](./docs/pics/Symmetric_Functions_Profiles.png "Symmetric Profiles")  
 
-The generic and non-symmetric curve profiles are shown:
+The following plots show the generic and asymmetric curve profiles:
 
 ![Generic Profiles](./docs/pics/Generic_Functions_Profiles.png "Generic Profiles")  
 
@@ -119,17 +119,19 @@ refer to this normalized fit. Use `interpolate_y(x)` for fitted Y values in the 
 FWHM describes the fitted profile at half its height relative to its baseline. For valleys, it describes half the depth. 
 It can extend outside the measured interval.
 
-The selection criteria of the best fitting function (curve) are:
+The best fit can be selected using one of these criteria. A residual is the difference between an observed Y value and its fitted value.
+
 - `"RMSE"`: root mean square error, which gives larger residuals more influence;
 - `"MAE"`: mean absolute error, which treats residuals linearly and is therefore 
  less sensitive to outliers;
 - `"IC"`: corrected Akaike information criterion (AICc), which balances fitting error against the number of function parameters.
 
-All candidates are fitted using least squares, including when MAE is used for ranking. Peak/valley variants and starting guesses 
+All candidates are fitted using least squares, which minimizes the sum of squared residuals, including when MAE is used for ranking. Peak/valley variants and starting guesses
 are compared by RMSE within each model. Available criteria can be checked through `fitter.best_fit_criteria`; AICc availability 
 is updated for the selected candidates. An unavailable criterion falls back to RMSE with a warning.
 
-`fit.pcov` is the parameter covariance estimate and `fit.perr` contains its diagonal square roots, they are provided by SciPy `curve_fit` method.  
+SciPy's `curve_fit` returns the parameter covariance estimate, `fit.pcov`. The package calculates `fit.perr` as
+the square roots of the diagonal entries of `fit.pcov`.
 They describe approximate uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return 
 `None` for both fields.
 
@@ -141,7 +143,7 @@ X and Y must both be non-constant. If X values are unsorted, they are sorted tog
 - Nonlinear fitting depends on initial estimates and parameter bounds. The selected result is the best of the successful candidates, without a guarantee of the global optimum.
 - Width and baseline bounds constrain the available shapes. Nonuniform sampling also affects the initial width estimates; each sample receives equal weight in fitting.
 - FWHM is not implemented for polynomial, constant, line or exponentially modified Gaussian models.
-- Flag `filter_spikes=True` removes eligible peaks with fewer than three nearby samples, or with a sufficiently high ratio of local to total RMSE. `filter_line_fit=True` performs its additional comparison only when a line has not already been fitted. These filters are heuristics, not statistical significance tests.
+- Setting `filter_spikes=True` removes eligible peaks with fewer than three nearby samples, or with a sufficiently high ratio of local to total RMSE. `filter_line_fit=True` performs its additional comparison only when a line has not already been fitted. These filters are practical screening rules, not statistical significance tests; a returned peak does not establish that a real feature is present.
 - A failed repeated search can retain and return earlier successful fits, with a warning.
 - `interpolate_y` evaluates within the original X interval; extrapolation is rejected.
 
@@ -149,7 +151,7 @@ X and Y must both be non-constant. If X values are unsorted, they are sorted tog
 
 The docstrings describe the public methods and model parameters. Report problems through the [issue tracker](https://github.com/sklykov/peakfit/issues), preferably with a small input example and the selected fitting options.
 
-See [API Documentation](./docs/api/index.html) for the full main module API functionality.
+See the [API reference](./docs/api/index.html) for the main fitting class.
 
 See [CHANGELOG.md](CHANGELOG.md) for the change history.
 
