@@ -56,7 +56,7 @@ from .utils.model_utils import (
     symmetric_f_names,
     tol,
 )
-from .utils.typing_utils import FloatArray, RealScalar, RealSeq, nparray
+from .utils.typing_utils import FloatArray, FloatArray64, RealScalar, RealSeq, nparray
 
 # %% Module parameters
 __docformat__ = "numpydoc"
@@ -1107,7 +1107,7 @@ class PeakFit1D():
         return is_ascending, x_return
 
     @staticmethod
-    def add_awgn(y: nparray, noise_fraction: float = 0.075, seed: int | None = None) -> nparray:
+    def add_awgn(y: nparray, noise_fraction: float = 0.075, seed: int | None = None) -> FloatArray64:
         """
         Add to the input y array Gaussian noise with zero average ("Additive White Gaussian Noise").
 
@@ -1122,14 +1122,15 @@ class PeakFit1D():
 
         Returns
         -------
-        nparray
-            y + additive Gaussian noise.
+        FloatArray64 (NDArray[np.float64])
+            y (copied and converted to np.float64 type) + additive Gaussian noise.
 
         """
         if noise_fraction > 1.0 + 1e-6 or noise_fraction < 0.0:
             raise ValueError("Noise Fraction should be in a range [0.0, 1.0]")
+        y = y.copy().astype(np.float64)  # copy the original data and convert to float numbers
         rng = np.random.default_rng(seed); noise_std = noise_fraction*np.ptp(y)  # np.ptp - peak to peak or max() - min() range
-        return y.copy() + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
+        return y + rng.normal(loc=0.0, scale=noise_std, size=y.shape)
 
     @staticmethod
     def set_interactive_pyqt_plot():

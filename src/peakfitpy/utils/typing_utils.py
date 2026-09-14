@@ -16,3 +16,4 @@ RealSeq = Sequence[RealScalar]  # for providing type hints accepting types like 
 nparray = NDArray[np.floating[Any]] | NDArray[np.integer[Any]]
 FloatArray = NDArray[np.floating[Any]]
 FitParams = Sequence[float] | NDArray[np.floating[Any]]
+FloatArray64 = NDArray[np.float64]
