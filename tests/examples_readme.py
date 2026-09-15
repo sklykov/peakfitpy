@@ -29,3 +29,12 @@ if peak is not None:
     print("Peak" if peak.is_peak else "Valley")
     print("Coordinates:", peak.x_orig, peak.y_orig)
     print("FWHM:", peak.fwhm_orig)  # None when this model has no implemented FWHM
+
+# Fitting all curves for a pure noise and plot the best one
+x = np.linspace(-3.0, 3.0, 41)
+y = 12.0*np.random.default_rng(0).normal(0.0, 1.0, x.size) - 4.0  # Pure noise: no peak or valley
+
+pf = PeakFit1D(x, y)
+fit, peak = pf.find_best_fit(selection_criterion="IC", filter_spikes=True, filter_line_fit=True,
+                             plot_best_fit=True)
+print(peak)  # A returned peak describes the fitted model, not proof of a meaningful signal

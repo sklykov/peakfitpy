@@ -135,6 +135,25 @@ the square roots of the diagonal entries of `fit.pcov`.
 They describe approximate uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return 
 `None` for both fields.
 
+### Limitations
+
+#### Pure noise fitting
+The following code provides an example of pure noise fitting:
+```python
+# Fitting all curves for a pure noise and plot the best one
+x = np.linspace(-3.0, 3.0, 41)
+y = 12.0*np.random.default_rng(0).normal(0.0, 1.0, x.size) - 4.0  # Pure noise: no peak or valley
+
+pf = PeakFit1D(x, y)
+fit, peak = pf.find_best_fit(selection_criterion="IC", filter_spikes=True,
+                             filter_line_fit=True, plot_best_fit=True)
+print(peak)  # A returned peak describes the fitted model, not proof of a meaningful signal
+```
+Example output: 
+![Pure Noise Fit](./docs/pics/Pure_Noise_Fit.png "Pure Noise Fit")  
+
+So, the package estimates the properties of a fitted peak or valley. It does not test whether a real feature is present: random noise can also produce a fitted extremum, even with the optional filters enabled.
+
 ### Input requirements and limitations
 
 - Provide equally sized, finite, real arrays with at least two samples. One-column arrays are also accepted. X values must be unique; 
@@ -145,7 +164,7 @@ X and Y must both be non-constant. If X values are unsorted, they are sorted tog
 - FWHM is not implemented for polynomial, constant, line or exponentially modified Gaussian models.
 - Setting `filter_spikes=True` removes eligible peaks with fewer than three nearby samples, or with a sufficiently high ratio of local to total RMSE. `filter_line_fit=True` performs its additional comparison only when a line has not already been fitted. These filters are practical screening rules, not statistical significance tests; a returned peak does not establish that a real feature is present.
 - A failed repeated search can retain and return earlier successful fits, with a warning.
-- `interpolate_y` evaluates within the original X interval; extrapolation is rejected.
+- `interpolate_y` evaluates within the original X interval; extrapolation (for values out of initial range) is rejected.
 
 ### Documentation and feedback
 
