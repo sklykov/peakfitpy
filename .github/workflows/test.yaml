@@ -1,6 +1,7 @@
 name: Run Python tests
 
 on:
+  workflow_call:  # Allow the publishing workflow to run these same tests.
   push:
     branches: [ main ]  # - add for limiting it to be triggered only by pushes to the main branch
     paths:  # triggers testing action if only any Python / listed files have been changed

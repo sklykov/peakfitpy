@@ -1,16 +1,15 @@
 # peakfitpy
 
-Python package for comparing curve models fitted to 1D sampled data and estimating the position and width
-of a single peak or valley when the selected model supports these properties.
+Python package for comparing curve models fitted to 1D sampled data and estimating the position and width of a single peak / valley when the selected model supports these properties.
 
-### Why this package?
+### Rationale for this package
 
-A measured peak does not always follow a Gaussian profile. This package provides a common interface for comparing several curve shapes and retrieving the properties of the selected fit. It is intended for data containing a single feature of interest; overlapping peaks are not fitted as a sum of separate components.
+A measured peak does not always follow a Gaussian profile. This package provides an interface for comparing several curve shapes and retrieving the properties of the best fit selected by the chosen criterion. It is intended for data containing a single feature of interest; overlapping peaks are not fitted as a sum of separate components.
 
 ### Features
 
 - Automatic comparison of 18 implemented curve models, including Gaussian, Lorentzian, Moffat, Rayleigh and polynomial functions;
-- Peak and valley fitting for supported models;
+- Peak / valley fitting for supported models;
 - Automatic input data preparation (normalization) and conversion of peak coordinates and width back to the original units;
 - Analytical full width at half maximum (FWHM) for supported profiles;
 - Optional filters for poorly sampled peaks and peak fits that perform worse than a line;
@@ -20,13 +19,13 @@ A measured peak does not always follow a Gaussian profile. This package provides
 
 #### Installation
 
-Planned PyPI installation command (placeholder until `peakfitpy` is published):
+PyPI installation command:
 
 ```console
 python -m pip install peakfitpy
 ```
 
-To upgrade after publication:
+To upgrade:
 
 ```console
 python -m pip install --upgrade peakfitpy
@@ -112,12 +111,10 @@ The following plots show the generic and asymmetric curve profiles:
 
 ### Interpretation of fitting results
 
-The input X and Y data are normalized to [0, 1] before fitting. `fit.params`, `fit.pcov`, `fit.perr`, `fit.rmse` and `fit.mae` 
-refer to this normalized fit. Use `interpolate_y(x)` for fitted Y values in the original units.
+The input X and Y data are normalized to `[0, 1]` before fitting. `fit.params`, `fit.pcov`, `fit.perr`, `fit.rmse` and `fit.mae` refer to this normalized fit. Use `interpolate_y(x)` for fitted Y values in the original units.
 
 `peak.x`, `peak.y` and `peak.fwhm` use normalized units; their `_orig` counterparts use the original data units. 
-FWHM describes the fitted profile at half its height relative to its baseline. For valleys, it describes half the depth. 
-It can extend outside the measured interval.
+FWHM describes the fitted profile at half its height relative to its baseline. For valleys, it describes half the depth. It can extend outside the measured interval.
 
 The best fit can be selected using one of these criteria. A residual is the difference between an observed Y value and its fitted value.
 
@@ -130,10 +127,8 @@ All candidates are fitted using least squares, which minimizes the sum of square
 are compared by RMSE within each model. Available criteria can be checked through `fitter.best_fit_criteria`; AICc availability 
 is updated for the selected candidates. An unavailable criterion falls back to RMSE with a warning.
 
-SciPy's `curve_fit` returns the parameter covariance estimate, `fit.pcov`. The package calculates `fit.perr` as
-the square roots of the diagonal entries of `fit.pcov`.
-They describe approximate uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return 
-`None` for both fields.
+SciPy's `curve_fit` returns the parameter covariance estimate, `fit.pcov`. The package calculates `fit.perr` as the square roots of the diagonal entries of `fit.pcov`.
+They describe approximate uncertainty in the fitted parameters, not uncertainty intervals for the peak position or FWHM. Polynomial fits currently return `None` for both fields.
 
 ### Limitations
 
@@ -162,8 +157,7 @@ The package estimates the properties of a fitted peak or valley. It does not det
 
 ### Input requirements and limitations
 
-- Provide equally sized, finite, real arrays with at least two samples. One-column arrays are also accepted. X values must be unique; 
-X and Y must both be non-constant. If X values are unsorted, they are sorted together with their corresponding Y values.
+- Provide equally sized, finite, real arrays with at least two samples. One-column arrays are also accepted. X values must be unique; X and Y must both be non-constant. If X values are unsorted, they are sorted together with their corresponding Y values.
 - Models with more parameters than samples are skipped. The best numerical fit does not necessarily have a definable peak; `peak` can be `None` even when `fit` exists.
 - Nonlinear fitting depends on initial estimates and parameter bounds. The selected result is the best of the successful candidates, without a guarantee of the global optimum.
 - Width and baseline bounds constrain the available shapes. Nonuniform sampling also affects the initial width estimates; each sample receives equal weight in fitting.
@@ -171,6 +165,16 @@ X and Y must both be non-constant. If X values are unsorted, they are sorted tog
 - Setting `filter_spikes=True` removes eligible peaks with fewer than three nearby samples, or with a sufficiently high ratio of local to total RMSE. `filter_line_fit=True` performs its additional comparison only when a line has not already been fitted. These filters are practical screening rules, not statistical significance tests; a returned peak does not establish that a real feature is present.
 - A failed repeated search can retain and return earlier successful fits, with a warning.
 - `interpolate_y` evaluates within the original X interval; extrapolation (for values out of initial range) is rejected.
+
+### Related projects
+
+Other established Python projects provide tools for more comprehensive curve fitting and signal analysis:
+
+- [LMfit](https://lmfit.github.io/lmfit-py/builtin_models.html) - curve fitting with built-in peak profiles and combined models, including multiple peaks and baseline functions;
+- [SciPy signal processing](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html) - peak detection and measurement of peak properties in sampled data;
+- [RamPy](https://github.com/charlesll/rampy) - focuses on comprehensive processing of spectroscopic data.
+
+These projects offer broader capabilities and have a longer history of development and scientific use. `peakfitpy` has a narrower scope: convenient comparison of curve models for a single peak or valley. It does not claim the same level of maturity or validation as these established tools.
 
 ### Documentation and feedback
 

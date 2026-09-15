@@ -1,0 +1,61 @@
+name: Publish Python package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"  # Release tags trigger the checks below before publishing.
+
+permissions:
+  contents: read
+
+jobs:
+  check-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged commit and branch history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history is needed to check membership in main
+
+      - name: Require tagged commit to be on main
+        run: |
+          git fetch origin main
+          # Verify that the tagged commit belongs to main and not other branch
+          git merge-base --is-ancestor HEAD origin/main
+
+  tests:
+    needs: check-main
+    uses: ./.github/workflows/test.yaml
+
+  publish:
+    needs: tests  # Publish only after every Python version passes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Only this job needs to authenticate to PyPI
+
+    environment:
+      name: pypi
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package
+        run: twine check dist/*
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
