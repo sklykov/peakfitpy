@@ -137,22 +137,28 @@ They describe approximate uncertainty in the fitted parameters, not uncertainty 
 
 ### Limitations
 
-#### Pure noise fitting
-The following code provides an example of pure noise fitting:
+#### Fitting noise-only data
+
+The following example fits candidate models to noise-only data:
+
 ```python
-# Fitting all curves for a pure noise and plot the best one
+# Fit the candidate models to noise-only data and plot the best fit.
 x = np.linspace(-3.0, 3.0, 41)
-y = 12.0*np.random.default_rng(0).normal(0.0, 1.0, x.size) - 4.0  # Pure noise: no peak or valley
+# Gaussian noise around a constant baseline; no underlying peak or valley.
+y = 12.0*np.random.default_rng(0).normal(0.0, 1.0, x.size) - 4.0
 
 pf = PeakFit1D(x, y)
 fit, peak = pf.find_best_fit(selection_criterion="IC", filter_spikes=True,
                              filter_line_fit=True, plot_best_fit=True)
-print(peak)  # A returned peak describes the fitted model, not proof of a meaningful signal
+# A returned peak or valley describes the fitted curve; it does not prove a real feature exists.
+print(peak)
 ```
+
 Example output: 
+
 ![Pure Noise Fit](./docs/pics/Pure_Noise_Fit.png "Pure Noise Fit")  
 
-So, the package estimates the properties of a fitted peak or valley. It does not test whether a real feature is present: random noise can also produce a fitted extremum, even with the optional filters enabled.
+The package estimates the properties of a fitted peak or valley. It does not determine whether an underlying peak or valley is present in the signal. Random noise can produce a fitted peak or valley, even with the optional filters enabled.
 
 ### Input requirements and limitations
 
